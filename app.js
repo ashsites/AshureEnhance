@@ -13,7 +13,7 @@ const getMode = () => getOpt("mode");
 
 const useHeavy = (cfg, mode) => mode === "photo" && !!cfg && cfg.gpu && !isMobile;
 
-const padFor = (mode, heavy) => (mode === "photo" ? (heavy ? 20 : 32) : 24);
+const padFor = (mode, heavy) => (mode === "photo" ? (heavy ? 20 : (isMobile ? 16 : 24)) : 24);
 
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
   (navigator.maxTouchPoints > 1 && Math.min(screen.width, screen.height) < 820);
@@ -87,7 +87,7 @@ async function buildAttempts(mode) {
 }
 
 function spawn(cfg, mode) {
-  const w = new Worker("worker.js", { type: "module" });
+  const w = new Worker("worker.js?v=4", { type: "module" });
   return new Promise((resolve, reject) => {
     let settled = false;
     const fail = err => {
@@ -194,9 +194,10 @@ async function runTile(rgb, width, height) {
 function limits() {
   const gpu = info && info.gpu;
   const heavy = useHeavy(info, getMode());
+  const weak = isMobile && ((navigator.deviceMemory || 4) <= 4 || (navigator.hardwareConcurrency || 4) <= 4);
   return {
     tile: heavy ? 96 : ((!gpu || isMobile) ? 96 : 128),
-    maxPixels: (gpu && !isMobile) ? 1600000 : 1000000,
+    maxPixels: isMobile ? (weak ? 250000 : 450000) : (gpu ? 1600000 : 1000000),
   };
 }
 
@@ -286,7 +287,8 @@ async function run() {
     setStatus("Preparando…");
     await initWorker();
     stage = "tiles";
-    const PAD = padFor(mode, useHeavy(info, mode));
+    const heavy = useHeavy(info, mode);
+    const PAD = padFor(mode, heavy);
     const { tile: TILE, maxPixels } = limits();
     const { canvas: inCanvas, resized } = toCanvas(srcImg, maxPixels);
     const W = inCanvas.width, H = inCanvas.height;
