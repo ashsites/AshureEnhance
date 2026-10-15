@@ -2,16 +2,21 @@ const TJS_URL = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3";
 const ORT_BASE = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/";
 const ORT_URL = ORT_BASE + "ort.webgpu.min.mjs";
 const ART_MODEL = "Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr";
-const PHOTO_MODEL_URL = "https://huggingface.co/jonathanst29/tinier-upscale-models/resolve/main/realesrgan-x4plus.onnx";
 
-let engine = null;          
-let upscaler = null;         
+const PHOTO_MODELS = {
+  plus: "https://huggingface.co/jonathanst29/tinier-upscale-models/resolve/main/realesrgan-x4plus.onnx",
+  lite: "https://huggingface.co/jonathanst29/tinier-upscale-models/resolve/main/realesr-general-x4v3.onnx",
+};
+
+let engine = null;
+let upscaler = null;
 let RawImage = null;
-let ort = null, session = null, inName = "", outName = ""; // modo photo
+let ort = null, session = null, inName = "", outName = "";
 
 function errText(e) {
   const m = e && e.message !== undefined ? e.message : e;
   const s = String(m);
+
   return /^\d+$/.test(s) ? `error interno del motor (código ${s}; suele indicar falta de memoria o incompatibilidad)` : s;
 }
 
@@ -56,7 +61,7 @@ async function initPhoto(m) {
   ort = await import(ORT_URL);
   ort.env.wasm.wasmPaths = ORT_BASE;
   ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, self.navigator.hardwareConcurrency || 1) : 1;
-  const bytes = await fetchModel(PHOTO_MODEL_URL);
+  const bytes = await fetchModel(PHOTO_MODELS[m.model] || PHOTO_MODELS.lite);
   session = await ort.InferenceSession.create(bytes, {
     executionProviders: [m.device],
     graphOptimizationLevel: "all",
@@ -75,6 +80,7 @@ async function inferArt(m) {
 async function inferPhoto(m) {
   const { width: w, height: h, data: d } = m;
   const plane = w * h;
+
   const input = new Float32Array(3 * plane);
   for (let i = 0; i < plane; i++) {
     input[i] = d[i * 3] / 255;
@@ -86,6 +92,7 @@ async function inferPhoto(m) {
   const t = out[outName];
   const od = t.data;
   const oh = t.dims[2], ow = t.dims[3], oplane = oh * ow;
+
   const rgb = new Uint8ClampedArray(oplane * 3);
   for (let i = 0; i < oplane; i++) {
     rgb[i * 3] = od[i] * 255;
