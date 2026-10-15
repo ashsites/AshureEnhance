@@ -1,0 +1,410 @@
+const S = 4;
+const DEBUG = new URLSearchParams(location.search).has("debug");
+
+const $ = id => document.getElementById(id);
+const drop = $("drop"), fileInput = $("file"), go = $("go"), bar = $("bar"), cancelBtn = $("cancel");
+const dlg = $("opts");
+const allRadios = document.querySelectorAll("input[type=radio]");
+const modeRadios = document.querySelectorAll("input[name=mode]");
+
+const getOpt = name => document.querySelector(`input[name=${name}]:checked`).value;
+const getMode = () => getOpt("mode"); 
+const padFor = mode => (mode === "photo" ? 20 : 24);
+
+const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+  (navigator.maxTouchPoints > 1 && Math.min(screen.width, screen.height) < 820);
+
+let srcImg = null, srcName = "imagen", srcType = "image/png", lastFormat = "png";
+let worker = null, readyPromise = null, readyMode = null, info = null, cancelled = false, running = false;
+let attempts = [], attemptIdx = -1, verified = false, initToken = 0;
+const errors = [];
+const rejectors = new Set();
+
+drop.onclick = () => fileInput.click();
+drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); if (e.dataTransfer.files[0]) load(e.dataTransfer.files[0]); };
+fileInput.onchange = () => fileInput.files[0] && load(fileInput.files[0]);
+
+modeRadios.forEach(r => r.addEventListener("change", () => {
+  if (srcImg && !running) initWorker().catch(() => {});
+}));
+
+function setStatus(t) { $("status").textContent = t; }
+
+function load(file) {
+  if (!file.type.startsWith("image/")) return setStatus("Ese archivo no es una imagen.");
+  srcName = file.name.replace(/\.[^.]+$/, "");
+  srcType = file.type;
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    srcImg = img;
+    $("preview").src = url;
+    $("previewWrap").classList.remove("hidden");
+    $("info").textContent = `Original: ${img.naturalWidth} × ${img.naturalHeight} px`;
+    go.disabled = false;
+    $("resultCard").classList.add("hidden");
+    setStatus("");
+    initWorker().catch(() => {});
+  };
+  img.src = url;
+}
+
+go.onclick = () => { if (srcImg && !running) dlg.showModal(); };
+$("optsCancel").onclick = () => dlg.close();
+dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close(); }); // clic fuera del panel
+$("optsDone").onclick = () => { dlg.close(); run(); };
+
+function abortAll(reason) {
+  for (const r of [...rejectors]) r(new Error(reason));
+  rejectors.clear();
+}
+
+function killWorker() {
+  if (worker) { try { worker.terminate(); } catch {} }
+  worker = null; readyPromise = null; readyMode = null; info = null;
+}
+
+async function buildAttempts(mode) {
+  let gpuOk = false;
+  try { gpuOk = !!(navigator.gpu && await navigator.gpu.requestAdapter()); } catch {}
+  const list = [];
+  if (mode === "photo") {
+    if (gpuOk) list.push({ device: "webgpu", dtype: "fp32", label: "GPU (WebGPU)", gpu: true });
+    list.push({ device: "wasm", dtype: "fp32", label: "Procesador (lento)", gpu: false });
+  } else {
+    if (gpuOk) list.push({ device: "webgpu", dtype: "fp32", label: "GPU (WebGPU)", gpu: true });
+    list.push({ device: "wasm", dtype: "q8",   label: "Procesador (lento)", gpu: false });
+    list.push({ device: "wasm", dtype: "fp32", label: "Procesador (lento)", gpu: false });
+  }
+  return list;
+}
+
+function spawn(cfg, mode) {
+  const w = new Worker("worker.js", { type: "module" });
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const fail = err => {
+      if (settled) return;
+      settled = true; rejectors.delete(fail);
+      try { w.terminate(); } catch {}
+      reject(err);
+    };
+    rejectors.add(fail);
+    w.onerror = ev => fail(new Error(ev.message || "No se pudo iniciar el procesador de imágenes"));
+    w.onmessage = e => {
+      const m = e.data;
+      if (m.type === "progress") {
+        bar.classList.remove("hidden"); bar.value = m.progress / 100;
+        setStatus("Preparando…");
+      } else if (m.type === "loading") {
+        setStatus("Preparando…");
+      } else if (m.type === "ready") {
+        if (settled) return;
+        settled = true; rejectors.delete(fail);
+        worker = w; info = cfg;
+        if (DEBUG) console.info("Configuración activa:", mode, cfg.label, cfg.dtype);
+        setStatus("");
+        bar.classList.add("hidden");
+        resolve();
+      } else if (m.type === "error") {
+        fail(new Error(m.message));
+      }
+    };
+    w.postMessage({ type: "init", mode, device: cfg.device, dtype: cfg.dtype });
+  });
+}
+
+async function initFrom(start, mode) {
+  for (let i = start; i < attempts.length; i++) {
+    try {
+      await spawn(attempts[i], mode);
+      attemptIdx = i;
+      return;
+    } catch (e) {
+      if (cancelled || e.message === "cancelado") throw e;
+      errors.push(`${attempts[i].label} [${attempts[i].dtype}] al cargar: ${e.message}`);
+      console.warn("Configuración falló:", attempts[i], e);
+    }
+  }
+  throw new Error("No se pudo cargar. " + errors.join(" | "));
+}
+
+function initWorker() {
+  const mode = getMode();
+  if (readyPromise && readyMode === mode) return readyPromise;
+  abortAll("cancelado");  
+  killWorker();
+  readyMode = mode;
+  const token = ++initToken;
+  const p = (async () => {
+    errors.length = 0; verified = false; attemptIdx = -1;
+    const list = await buildAttempts(mode);
+    if (token !== initToken) throw new Error("cancelado");
+    attempts = list;
+    await initFrom(0, mode);
+  })();
+  readyPromise = p;
+  p.catch(() => { if (readyPromise === p) killWorker(); });
+  return p;
+}
+
+async function nextConfig() {
+  if (worker) { try { worker.terminate(); } catch {} }
+  worker = null;
+  if (attemptIdx + 1 >= attempts.length) return false;
+  try { await initFrom(attemptIdx + 1, readyMode); return true; }
+  catch (e) { if (cancelled || e.message === "cancelado") throw e; return false; }
+}
+
+function runTileOnce(data, width, height) {
+  return new Promise((resolve, reject) => {
+    rejectors.add(reject);
+    worker.onerror = ev => { rejectors.delete(reject); reject(new Error(ev.message || "Error en el procesador de imágenes")); };
+    worker.onmessage = e => {
+      const m = e.data;
+      if (m.type === "tile") { rejectors.delete(reject); resolve(m); }
+      else if (m.type === "error") { rejectors.delete(reject); reject(new Error(m.message)); }
+    };
+    worker.postMessage({ type: "tile", data, width, height }, [data.buffer]);
+  });
+}
+
+async function runTile(rgb, width, height) {
+  while (true) {
+    try {
+      const res = await runTileOnce(rgb.slice(), width, height);
+      verified = true;
+      return res;
+    } catch (e) {
+      if (cancelled || e.message === "cancelado" || verified) throw e;
+      const a = attempts[attemptIdx];
+      errors.push(`${a ? a.label + " [" + a.dtype + "]" : "?"} al procesar: ${e.message}`);
+      if (!(await nextConfig())) throw new Error(errors.join(" | "));
+    }
+  }
+}
+
+function limits() {
+  const gpu = info && info.gpu;
+  const photo = getMode() === "photo";
+  return {
+    tile: photo
+      ? ((!gpu || isMobile) ? 48 : 96)
+      : ((!gpu || isMobile) ? 96 : 128),
+    maxPixels: (gpu && !isMobile) ? 1600000 : 1000000, 
+  };
+}
+
+function toCanvas(img, maxPixels) {
+  let w = img.naturalWidth, h = img.naturalHeight;
+  const k = Math.min(1, Math.sqrt(maxPixels / (w * h)));
+  w = Math.max(1, Math.round(w * k)); h = Math.max(1, Math.round(h * k));
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  c.getContext("2d").drawImage(img, 0, 0, w, h);
+  return { canvas: c, resized: k < 1 };
+}
+
+function fmtTime(s) {
+  s = Math.max(1, Math.round(s));
+  return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min ${s % 60} s`;
+}
+
+const NOISE = {
+  none:   null,
+  low:    { r: 1, sc: 14 },
+  medium: { r: 2, sc: 24 },
+  high:   { r: 2, sc: 38 },
+  max:    { r: 3, sc: 55 },
+};
+
+async function denoise(ctx, W, H, level) {
+  const cfg = NOISE[level];
+  if (!cfg) return;
+  const src = ctx.getImageData(0, 0, W, H);
+  const s = src.data;
+  const out = new Uint8ClampedArray(s.length);
+  const r = cfg.r, side = 2 * r + 1, sigS = Math.max(1, r * 0.75);
+
+  const ws = new Float32Array(side * side); 
+  for (let dy = -r; dy <= r; dy++)
+    for (let dx = -r; dx <= r; dx++)
+      ws[(dy + r) * side + (dx + r)] = Math.exp(-(dx * dx + dy * dy) / (2 * sigS * sigS));
+
+  const lut = new Float32Array(256);        
+  for (let d = 0; d < 256; d++) lut[d] = Math.exp(-(d * d) / (2 * cfg.sc * cfg.sc));
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
+      const r0 = s[i], g0 = s[i + 1], b0 = s[i + 2];
+      let sr = 0, sg = 0, sb = 0, sw = 0;
+      for (let dy = -r; dy <= r; dy++) {
+        const yy = Math.min(H - 1, Math.max(0, y + dy));
+        for (let dx = -r; dx <= r; dx++) {
+          const xx = Math.min(W - 1, Math.max(0, x + dx));
+          const j = (yy * W + xx) * 4;
+          const d = ((Math.abs(s[j] - r0) + Math.abs(s[j + 1] - g0) + Math.abs(s[j + 2] - b0)) / 3) | 0;
+          const w = ws[(dy + r) * side + dx + r] * lut[d];
+          sr += s[j] * w; sg += s[j + 1] * w; sb += s[j + 2] * w; sw += w;
+        }
+      }
+      out[i] = sr / sw; out[i + 1] = sg / sw; out[i + 2] = sb / sw; out[i + 3] = 255;
+    }
+    if (y % 48 === 47) await new Promise(res => setTimeout(res)); 
+    if (cancelled) throw new Error("cancelado");
+  }
+  ctx.putImageData(new ImageData(out, W, H), 0, 0);
+}
+
+const MIME = { png: "image/png", jpg: "image/jpeg", webp: "image/webp" };
+
+function resolveFormat(choice) {
+  if (choice !== "default") return choice;
+  if (srcType === "image/jpeg") return "jpg";   
+  if (srcType === "image/webp") return "webp";
+  return "png";
+}
+
+async function run() {
+  if (!srcImg || running) return;
+  go.disabled = true; cancelled = false; running = true;
+  allRadios.forEach(r => { r.disabled = true; });
+  let stage = "init";
+  cancelBtn.classList.remove("hidden");
+
+  const scale = +getOpt("scale");
+  const mode = getMode();
+  const noise = getOpt("noise");
+  const format = resolveFormat(getOpt("format"));
+  const PAD = padFor(mode);
+
+  try {
+    setStatus("Preparando…");
+    await initWorker();
+    stage = "tiles";
+    const { tile: TILE, maxPixels } = limits();
+    const { canvas: inCanvas, resized } = toCanvas(srcImg, maxPixels);
+    const W = inCanvas.width, H = inCanvas.height;
+
+    const flat = document.createElement("canvas"); flat.width = W; flat.height = H;
+    const fctx = flat.getContext("2d");
+    fctx.fillStyle = "#fff"; fctx.fillRect(0, 0, W, H); fctx.drawImage(inCanvas, 0, 0);
+    const alphaData = inCanvas.getContext("2d").getImageData(0, 0, W, H).data;
+    let hasAlpha = false;
+    for (let i = 3; i < alphaData.length; i += 4) if (alphaData[i] < 255) { hasAlpha = true; break; }
+
+    if (noise !== "none") {
+      setStatus("Preparando…");
+      await denoise(fctx, W, H, noise);
+    }
+
+    const out = document.createElement("canvas"); out.width = W * scale; out.height = H * scale;
+    const octx = out.getContext("2d"); octx.imageSmoothingQuality = "high";
+    const tmp = document.createElement("canvas");
+    const tctx = tmp.getContext("2d");
+
+    const tilesX = Math.ceil(W / TILE), tilesY = Math.ceil(H / TILE), total = tilesX * tilesY;
+    let done = 0;
+    const t0 = performance.now();
+    bar.classList.remove("hidden"); bar.value = 0;
+
+    for (let ty = 0; ty < tilesY; ty++) {
+      for (let tx = 0; tx < tilesX; tx++) {
+        if (cancelled) throw new Error("cancelado");
+        const x = tx * TILE, y = ty * TILE;
+        const w = Math.min(TILE, W - x), h = Math.min(TILE, H - y);
+        const x0 = Math.max(0, x - PAD), y0 = Math.max(0, y - PAD);
+        const x1 = Math.min(W, x + w + PAD), y1 = Math.min(H, y + h + PAD);
+        const tw = x1 - x0, th = y1 - y0;
+
+        const rgba = fctx.getImageData(x0, y0, tw, th).data;
+        const rgb = new Uint8ClampedArray(tw * th * 3);
+        for (let i = 0, j = 0; i < rgba.length; i += 4) { rgb[j++] = rgba[i]; rgb[j++] = rgba[i + 1]; rgb[j++] = rgba[i + 2]; }
+
+        const res = await runTile(rgb, tw, th);
+
+        const rw = res.width, rh = res.height, ch = res.channels;
+        tmp.width = rw; tmp.height = rh;
+        const img = tctx.createImageData(rw, rh);
+        for (let i = 0, j = 0; i < rw * rh; i++, j += 4) {
+          img.data[j] = res.data[i * ch];
+          img.data[j + 1] = res.data[i * ch + 1];
+          img.data[j + 2] = res.data[i * ch + 2];
+          img.data[j + 3] = 255;
+        }
+        tctx.putImageData(img, 0, 0);
+
+        octx.drawImage(tmp, (x - x0) * S, (y - y0) * S, w * S, h * S, x * scale, y * scale, w * scale, h * scale);
+
+        done++; bar.value = done / total;
+        const elapsed = (performance.now() - t0) / 1000;
+        const eta = (elapsed / done) * (total - done);
+        setStatus(done < total ? `Mejorando… quedan aprox. ${fmtTime(eta)}` : "Terminando…");
+      }
+    }
+
+    if (hasAlpha) {
+      const am = document.createElement("canvas"); am.width = out.width; am.height = out.height;
+      const actx = am.getContext("2d"); actx.imageSmoothingQuality = "high";
+      actx.drawImage(inCanvas, 0, 0, am.width, am.height);
+      const a = actx.getImageData(0, 0, am.width, am.height).data;
+      const o = octx.getImageData(0, 0, out.width, out.height);
+      for (let i = 3; i < o.data.length; i += 4) o.data[i] = a[i];
+      octx.putImageData(o, 0, 0);
+    }
+
+    const rc = $("result"); rc.width = out.width; rc.height = out.height;
+    rc.getContext("2d").drawImage(out, 0, 0);
+    lastFormat = format;
+    $("download").textContent = "Descargar " + format.toUpperCase();
+    $("resInfo").textContent = `Tamaño: ${out.width} × ${out.height} px` +
+      (resized ? ` (se ajustó el tamaño de la imagen original para poder procesarla)` : "");
+    $("resultCard").classList.remove("hidden");
+    setStatus("¡Listo!");
+  } catch (e) {
+    console.error(e);
+    if (cancelled || (e && e.message === "cancelado")) {
+      setStatus("Cancelado.");
+    } else {
+      killWorker(); 
+      const detail = `[${mode}/${stage}] ` + (e.message || e);
+      setStatus(DEBUG
+        ? "Error. Detalle: " + detail
+        : "No se pudo mejorar la imagen. Prueba con otra más pequeña, con 2x, o recarga la página.");
+    }
+  } finally {
+    running = false;
+    allRadios.forEach(r => { r.disabled = false; });
+    bar.classList.add("hidden");
+    cancelBtn.classList.add("hidden");
+    go.disabled = false;
+  }
+}
+
+cancelBtn.onclick = () => {
+  cancelled = true;
+  abortAll("cancelado");
+  killWorker(); 
+};
+
+$("download").onclick = () => {
+  const src = $("result");
+  let canvas = src;
+  if (lastFormat === "jpg") {
+    canvas = document.createElement("canvas");
+    canvas.width = src.width; canvas.height = src.height;
+    const c = canvas.getContext("2d");
+    c.fillStyle = "#fff"; c.fillRect(0, 0, canvas.width, canvas.height);
+    c.drawImage(src, 0, 0);
+  }
+  canvas.toBlob(b => {
+    if (!b) return setStatus("No se pudo preparar la descarga. Prueba con otro formato.");
+    const real = b.type === "image/jpeg" ? "jpg" : b.type === "image/webp" ? "webp" : "png";
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(b);
+    a.download = `${srcName}_mejorada.${real}`;
+    a.click();
+  }, MIME[lastFormat], 0.95);
+};
