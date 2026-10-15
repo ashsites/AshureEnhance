@@ -1,4 +1,5 @@
 const S = 4;
+
 const DEBUG = new URLSearchParams(location.search).has("debug");
 
 const $ = id => document.getElementById(id);
@@ -8,8 +9,11 @@ const allRadios = document.querySelectorAll("input[type=radio]");
 const modeRadios = document.querySelectorAll("input[name=mode]");
 
 const getOpt = name => document.querySelector(`input[name=${name}]:checked`).value;
-const getMode = () => getOpt("mode"); 
-const padFor = mode => (mode === "photo" ? 20 : 24);
+const getMode = () => getOpt("mode");
+
+const useHeavy = (cfg, mode) => mode === "photo" && !!cfg && cfg.gpu && !isMobile;
+
+const padFor = (mode, heavy) => (mode === "photo" ? (heavy ? 20 : 32) : 24);
 
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
   (navigator.maxTouchPoints > 1 && Math.min(screen.width, screen.height) < 820);
@@ -46,6 +50,7 @@ function load(file) {
     go.disabled = false;
     $("resultCard").classList.add("hidden");
     setStatus("");
+
     initWorker().catch(() => {});
   };
   img.src = url;
@@ -53,7 +58,7 @@ function load(file) {
 
 go.onclick = () => { if (srcImg && !running) dlg.showModal(); };
 $("optsCancel").onclick = () => dlg.close();
-dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close(); }); // clic fuera del panel
+dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close(); });
 $("optsDone").onclick = () => { dlg.close(); run(); };
 
 function abortAll(reason) {
@@ -112,7 +117,7 @@ function spawn(cfg, mode) {
         fail(new Error(m.message));
       }
     };
-    w.postMessage({ type: "init", mode, device: cfg.device, dtype: cfg.dtype });
+    w.postMessage({ type: "init", mode, device: cfg.device, dtype: cfg.dtype, model: useHeavy(cfg, mode) ? "plus" : "lite" });
   });
 }
 
@@ -134,7 +139,7 @@ async function initFrom(start, mode) {
 function initWorker() {
   const mode = getMode();
   if (readyPromise && readyMode === mode) return readyPromise;
-  abortAll("cancelado");  
+  abortAll("cancelado");
   killWorker();
   readyMode = mode;
   const token = ++initToken;
@@ -188,12 +193,10 @@ async function runTile(rgb, width, height) {
 
 function limits() {
   const gpu = info && info.gpu;
-  const photo = getMode() === "photo";
+  const heavy = useHeavy(info, getMode());
   return {
-    tile: photo
-      ? ((!gpu || isMobile) ? 48 : 96)
-      : ((!gpu || isMobile) ? 96 : 128),
-    maxPixels: (gpu && !isMobile) ? 1600000 : 1000000, 
+    tile: heavy ? 96 : ((!gpu || isMobile) ? 96 : 128),
+    maxPixels: (gpu && !isMobile) ? 1600000 : 1000000,
   };
 }
 
@@ -227,12 +230,12 @@ async function denoise(ctx, W, H, level) {
   const out = new Uint8ClampedArray(s.length);
   const r = cfg.r, side = 2 * r + 1, sigS = Math.max(1, r * 0.75);
 
-  const ws = new Float32Array(side * side); 
+  const ws = new Float32Array(side * side);
   for (let dy = -r; dy <= r; dy++)
     for (let dx = -r; dx <= r; dx++)
       ws[(dy + r) * side + (dx + r)] = Math.exp(-(dx * dx + dy * dy) / (2 * sigS * sigS));
 
-  const lut = new Float32Array(256);        
+  const lut = new Float32Array(256);
   for (let d = 0; d < 256; d++) lut[d] = Math.exp(-(d * d) / (2 * cfg.sc * cfg.sc));
 
   for (let y = 0; y < H; y++) {
@@ -252,7 +255,7 @@ async function denoise(ctx, W, H, level) {
       }
       out[i] = sr / sw; out[i + 1] = sg / sw; out[i + 2] = sb / sw; out[i + 3] = 255;
     }
-    if (y % 48 === 47) await new Promise(res => setTimeout(res)); 
+    if (y % 48 === 47) await new Promise(res => setTimeout(res));
     if (cancelled) throw new Error("cancelado");
   }
   ctx.putImageData(new ImageData(out, W, H), 0, 0);
@@ -262,7 +265,7 @@ const MIME = { png: "image/png", jpg: "image/jpeg", webp: "image/webp" };
 
 function resolveFormat(choice) {
   if (choice !== "default") return choice;
-  if (srcType === "image/jpeg") return "jpg";   
+  if (srcType === "image/jpeg") return "jpg";
   if (srcType === "image/webp") return "webp";
   return "png";
 }
@@ -278,12 +281,12 @@ async function run() {
   const mode = getMode();
   const noise = getOpt("noise");
   const format = resolveFormat(getOpt("format"));
-  const PAD = padFor(mode);
 
   try {
     setStatus("Preparando…");
     await initWorker();
     stage = "tiles";
+    const PAD = padFor(mode, useHeavy(info, mode));
     const { tile: TILE, maxPixels } = limits();
     const { canvas: inCanvas, resized } = toCanvas(srcImg, maxPixels);
     const W = inCanvas.width, H = inCanvas.height;
@@ -368,7 +371,7 @@ async function run() {
     if (cancelled || (e && e.message === "cancelado")) {
       setStatus("Cancelado.");
     } else {
-      killWorker(); 
+      killWorker();
       const detail = `[${mode}/${stage}] ` + (e.message || e);
       setStatus(DEBUG
         ? "Error. Detalle: " + detail
@@ -386,7 +389,7 @@ async function run() {
 cancelBtn.onclick = () => {
   cancelled = true;
   abortAll("cancelado");
-  killWorker(); 
+  killWorker();
 };
 
 $("download").onclick = () => {
@@ -401,6 +404,7 @@ $("download").onclick = () => {
   }
   canvas.toBlob(b => {
     if (!b) return setStatus("No se pudo preparar la descarga. Prueba con otro formato.");
+
     const real = b.type === "image/jpeg" ? "jpg" : b.type === "image/webp" ? "webp" : "png";
     const a = document.createElement("a");
     a.href = URL.createObjectURL(b);
