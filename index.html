@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=2">
 </head>
 <body>
 
@@ -17,37 +17,75 @@
   <div class="topbar-inner">
     <img class="logo" src="logo.png" alt="Logo de Ashure Enhance">
     <span class="brand-name">Ashure Enhance</span>
+    <span class="badge">🔒 100% privado</span>
   </div>
 </header>
 
 <main>
-  <p class="sub">Mejora la calidad de tus imágenes. Todo se procesa en tu navegador y tus imágenes no se suben a ningún servidor.</p>
+  <section class="hero">
+    <h1>Mejora tus imágenes <span class="grad-text">con IA</span></h1>
+    <p class="sub">Aumenta la resolución y la nitidez de tus ilustraciones y fotos. Todo se procesa en tu navegador y tus imágenes no se suben a ningún servidor.</p>
+    <div class="chips">
+      <span class="chip">🎨 Arte y fotos</span>
+      <span class="chip">⚡ Hasta 4x</span>
+      <span class="chip">🔒 Sin subir nada</span>
+      <span class="chip">💸 Gratis</span>
+    </div>
+  </section>
 
-  <div class="card">
-    <div id="drop" class="drop">Arrastra una imagen aquí o haz clic para elegirla<br><small>PNG, JPG o WebP</small></div>
+  <div class="card" id="stepUpload">
+    <div class="card-head">
+      <span class="step">1</span>
+      <div>
+        <h2>Sube tu imagen</h2>
+        <p class="hint">PNG, JPG o WebP</p>
+      </div>
+    </div>
+
+    <div id="drop" class="drop">
+      <svg class="drop-icon" viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 16V4m0 0l-4 4m4-4l4 4"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>
+      </svg>
+      <strong>Arrastra una imagen aquí</strong>
+      <span>o haz clic para elegirla</span>
+    </div>
     <input id="file" type="file" accept="image/*" class="hidden">
-    <div id="previewWrap" class="hidden" style="margin-top:16px">
+
+    <div id="previewWrap" class="hidden">
       <img id="preview" class="preview" alt="Vista previa">
       <p class="status" id="info"></p>
-      <button id="change" class="secondary" style="margin-top:12px">Cambiar imagen</button>
+      <button id="change" class="secondary">Cambiar imagen</button>
     </div>
   </div>
 
-  <div class="card">
+  <div class="card" id="stepGo">
+    <div class="card-head">
+      <span class="step">2</span>
+      <div>
+        <h2>Mejora</h2>
+        <p class="hint">Elige las opciones y deja que la IA haga su trabajo</p>
+      </div>
+    </div>
     <div class="row">
-      <button id="go" disabled>Mejorar</button>
+      <button id="go" disabled>✨ Mejorar</button>
     </div>
     <progress id="bar" value="0" max="1" class="hidden"></progress>
     <p class="status" id="status"></p>
-    <button id="cancel" class="secondary hidden" style="margin-top:10px">Cancelar</button>
+    <button id="cancel" class="secondary hidden">Cancelar</button>
   </div>
 
-  <div id="resultCard" class="card hidden">
+  <div id="resultCard" class="card result-card hidden">
+    <div class="card-head">
+      <span class="step ok">✓</span>
+      <div>
+        <h2>¡Tu imagen está lista!</h2>
+        <p class="hint" id="resInfo"></p>
+      </div>
+    </div>
     <canvas id="result" class="result"></canvas>
-    <p class="status" id="resInfo"></p>
-    <div class="row" style="margin-top:12px">
+    <div class="row actions-row">
       <button id="download">Descargar</button>
-      <button id="again" class="secondary">Subir otra imagen</button>
+      <button id="again" class="secondary">Cambiar imagen</button>
     </div>
   </div>
 </main>
@@ -103,6 +141,6 @@
 </dialog>
 
 <script src="coi-serviceworker.js"></script>
-<script type="module" src="app.js?v=24"></script>
+<script type="module" src="app.js?v=26"></script>
 </body>
 </html>
