@@ -1,4 +1,5 @@
 const S = 4;
+const PHOTO_BLEND = 0.25; 
 
 const $ = id => document.getElementById(id);
 const drop = $("drop"), fileInput = $("file"), go = $("go"), bar = $("bar"), cancelBtn = $("cancel");
@@ -218,7 +219,7 @@ function limits() {
   const weak = isMobile && ((navigator.deviceMemory || 4) <= 2 || (navigator.hardwareConcurrency || 4) <= 4);
   return {
     tile: heavy ? 96 : (weak ? 96 : 128),
-    maxPixels: isMobile ? (weak ? 400000 : 1100000) : (gpu ? 1600000 : 1000000),
+    maxPixels: isMobile ? (weak ? 400000 : 1100000) : 1600000,
   };
 }
 
@@ -381,6 +382,16 @@ async function run() {
         const eta = (elapsed / done) * (total - done);
         setStatus(done < total ? `Mejorando… quedan aprox. ${fmtTime(eta)}` : "Terminando…");
       }
+    }
+
+    // Modo Foto: el modelo suaviza la piel y queda "plástico".
+    // Mezclar un poco de la imagen original devuelve textura natural.
+    if (mode === "photo" && PHOTO_BLEND > 0) {
+      octx.save();
+      octx.globalAlpha = PHOTO_BLEND;
+      octx.imageSmoothingQuality = "high";
+      octx.drawImage(keep ? srcImg : inCanvas, 0, 0, out.width, out.height);
+      octx.restore();
     }
 
     if (hasAlpha) {
