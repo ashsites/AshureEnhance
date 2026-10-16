@@ -1,8 +1,6 @@
 const S = 4;
 const TIME_BUDGET = 600;
 
-const DEBUG = new URLSearchParams(location.search).has("debug");
-
 const $ = id => document.getElementById(id);
 const drop = $("drop"), fileInput = $("file"), go = $("go"), bar = $("bar"), cancelBtn = $("cancel");
 const dlg = $("opts");
@@ -82,28 +80,17 @@ function killWorker() {
   worker = null; readyPromise = null; readyMode = null; info = null;
 }
 
-async function buildAttempts(mode) {
+async function buildAttempts() {
   let gpuOk = false;
   try { gpuOk = !isMobile && !!(navigator.gpu && await navigator.gpu.requestAdapter()); } catch {}
   const list = [];
-  if (mode === "photo") {
-    if (gpuOk) list.push({ device: "webgpu", dtype: "fp32", label: "GPU (WebGPU)", gpu: true });
-    list.push({ device: "wasm", dtype: "fp32", label: "Procesador (lento)", gpu: false });
-  } else {
-    if (gpuOk) list.push({ device: "webgpu", dtype: "fp32", label: "GPU (WebGPU)", gpu: true });
-    if (isMobile) {
-      list.push({ device: "wasm", dtype: "fp32", label: "Procesador (lento)", gpu: false });
-      list.push({ device: "wasm", dtype: "q8",   label: "Procesador (lento)", gpu: false });
-    } else {
-      list.push({ device: "wasm", dtype: "q8",   label: "Procesador (lento)", gpu: false });
-      list.push({ device: "wasm", dtype: "fp32", label: "Procesador (lento)", gpu: false });
-    }
-  }
+  if (gpuOk) list.push({ device: "webgpu", dtype: "fp32", label: "GPU (WebGPU)", gpu: true });
+  list.push({ device: "wasm", dtype: "fp32", label: "Procesador (lento)", gpu: false });
   return list;
 }
 
 function spawn(cfg, mode) {
-  const w = new Worker("worker.js?v=22", { type: "module" });
+  const w = new Worker("worker.js?v=24", { type: "module" });
   return new Promise((resolve, reject) => {
     let settled = false;
     const fail = err => {
@@ -125,7 +112,6 @@ function spawn(cfg, mode) {
         if (settled) return;
         settled = true; rejectors.delete(fail);
         worker = w; info = cfg;
-        if (DEBUG) console.info("Configuración activa:", mode, cfg.label, cfg.dtype);
         setStatus("");
         bar.classList.add("hidden");
         resolve();
@@ -133,7 +119,7 @@ function spawn(cfg, mode) {
         fail(new Error(m.message));
       }
     };
-    w.postMessage({ type: "init", mode: (isMobile && mode === "art") ? "photo" : mode, device: cfg.device, dtype: cfg.dtype, model: useHeavy(cfg, mode) ? "plus" : "lite", threads: Math.min(4, navigator.hardwareConcurrency || 1) });
+    w.postMessage({ type: "init", device: cfg.device, dtype: cfg.dtype, model: useHeavy(cfg, mode) ? "plus" : "lite", threads: Math.min(4, navigator.hardwareConcurrency || 1) });
   });
 }
 
@@ -165,7 +151,7 @@ function initWorker() {
   refreshUI();
   const p = (async () => {
     errors.length = 0; verified = false; attemptIdx = -1;
-    const list = await buildAttempts(mode);
+    const list = await buildAttempts();
     if (token !== initToken) throw new Error("cancelado");
     attempts = list;
     await initFrom(0, mode);
@@ -303,21 +289,17 @@ async function run() {
   cancelled = false; running = true;
   refreshUI();
   allRadios.forEach(r => { r.disabled = true; });
-  let stage = "init";
 
   const scale = +getOpt("scale");
   const mode = getMode();
   const noise = getOpt("noise");
   const format = resolveFormat(getOpt("format"));
-  const quiet = !DEBUG;
 
   try {
     setStatus("Preparando…");
     await initWorker();
-    stage = "tiles";
     let tpp = 0;
     if (!info.gpu) {
-      setStatus(quiet ? "Preparando…" : "Calculando el mejor tamaño para tu equipo…");
       await runTile(new Uint8ClampedArray(32 * 32 * 3).fill(128), 32, 32);
       for (let k = 0; k < 2; k++) {
         const tc = performance.now();
@@ -334,15 +316,10 @@ async function run() {
       const fit = Math.floor(TIME_BUDGET / (tpp * ((TILE + 2 * PAD) / TILE) ** 2 * 1.1));
       cap = Math.max(40000, Math.min(maxPixels, fit));
     }
-    let inCanvas, resized, out, octx, hasAlpha, keep, note, adjusted = false;
+    let inCanvas, resized, out, octx, hasAlpha, keep, adjusted = false;
     pass: for (;;) {
     ({ canvas: inCanvas, resized } = toCanvas(srcImg, cap));
     const W = inCanvas.width, H = inCanvas.height;
-    const parts = [];
-    if (resized && !quiet) parts.push(`imagen ajustada a ${W} × ${H} px para ${cap < maxPixels ? "terminar en unos " + Math.round(TIME_BUDGET / 60) + " min" : "poder procesarla"}`);
-    if (!info.gpu && !crossOriginIsolated && !quiet) parts.push("tu navegador no permite varios hilos, por eso es más lento");
-    if (DEBUG) parts.push(`[orig-diag-v23 · ${mode} · ${info.label} ${info.dtype} · multihilo ${crossOriginIsolated ? "sí" : "no"} · núcleos ${navigator.hardwareConcurrency || "?"} · RAM ${navigator.deviceMemory || "?"} GB · ${(tpp * 1000).toFixed(2)} ms/px · tope ${cap} px · mosaico ${TILE}+${PAD} · ajustado ${adjusted}]`);
-    note = parts.length ? " · " + parts.join(" · ") : "";
 
     const flat = document.createElement("canvas"); flat.width = W; flat.height = H;
     const fctx = flat.getContext("2d");
@@ -369,7 +346,7 @@ async function run() {
     let done = 0;
     const t0 = performance.now();
     bar.classList.remove("hidden"); bar.value = 0;
-    setStatus("Mejorando…" + (DEBUG ? note : ""));
+    setStatus("Mejorando…");
 
     for (let ty = 0; ty < tilesY; ty++) {
       for (let tx = 0; tx < tilesX; tx++) {
@@ -404,8 +381,7 @@ async function run() {
         done++; bar.value = done / total;
         const elapsed = (performance.now() - t0) / 1000;
         const eta = (elapsed / done) * (total - done);
-        if (done >= total) setStatus("Terminando…");
-        else setStatus(DEBUG ? `Mejorando… quedan aprox. ${fmtTime(eta)}${note}` : "Mejorando…");
+        setStatus(done < total ? `Mejorando… quedan aprox. ${fmtTime(eta)}` : "Terminando…");
         if (tpp > 0 && !adjusted && done === 3 && total > 6) {
           const projected = (elapsed / done) * total;
           if (projected > TIME_BUDGET * 1.5) {
@@ -434,8 +410,7 @@ async function run() {
     rc.getContext("2d").drawImage(out, 0, 0);
     lastFormat = format;
     $("download").textContent = "Descargar " + format.toUpperCase();
-    $("resInfo").textContent = `Tamaño: ${out.width} × ${out.height} px` +
-      (resized && !quiet ? ` (la imagen original se redujo a ${inCanvas.width} × ${inCanvas.height} px antes de mejorarla${keep ? " y el resultado se ajustó al tamaño pedido" : ""})` : "");
+    $("resInfo").textContent = `Tamaño: ${out.width} × ${out.height} px`;
     $("resultCard").classList.remove("hidden");
     setStatus("¡Listo!");
   } catch (e) {
@@ -444,10 +419,7 @@ async function run() {
       setStatus("Cancelado.");
     } else {
       killWorker();
-      const detail = `[${mode}/${stage}] ` + (e.message || e);
-      setStatus(DEBUG
-        ? "Error. Detalle: " + detail
-        : "No se pudo mejorar la imagen. Prueba con otra más pequeña, con 2x, o recarga la página.");
+      setStatus("No se pudo mejorar la imagen. Prueba con otra más pequeña, con 2x, o recarga la página.");
     }
   } finally {
     running = false;
