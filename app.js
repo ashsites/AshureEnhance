@@ -119,7 +119,9 @@ function spawn(cfg, mode) {
         fail(new Error(m.message));
       }
     };
-    w.postMessage({ type: "init", device: cfg.device, dtype: cfg.dtype, model: useHeavy(cfg, mode) ? "plus" : "lite", threads: Math.min(4, navigator.hardwareConcurrency || 1) });
+    w.postMessage({ type: "init", device: cfg.device, dtype: cfg.dtype, model: mode === "art"
+  ? "anime"
+  : (useHeavy(cfg, mode) ? "plus" : "lite"), threads: Math.min(4, navigator.hardwareConcurrency || 1) });
   });
 }
 
