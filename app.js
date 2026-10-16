@@ -1,5 +1,5 @@
 const S = 4;
-const TIME_BUDGET = 180;
+const TIME_BUDGET = 600;
 
 const DEBUG = new URLSearchParams(location.search).has("debug");
 
@@ -39,7 +39,7 @@ function setStatus(t) { $("status").textContent = t; }
 
 function refreshUI() {
   const busy = loadingModel || running;
-  go.disabled = !srcImg || busy;
+  go.disabled = !srcImg || running;
   $("change").classList.toggle("hidden", !srcImg || busy);
   cancelBtn.classList.toggle("hidden", !busy);
 }
@@ -67,7 +67,7 @@ function load(file) {
   img.src = url;
 }
 
-go.onclick = () => { if (srcImg && !running && !loadingModel) dlg.showModal(); };
+go.onclick = () => { if (srcImg && !running) dlg.showModal(); };
 $("optsCancel").onclick = () => dlg.close();
 dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close(); });
 $("optsDone").onclick = () => { dlg.close(); run(); };
@@ -309,7 +309,7 @@ async function run() {
   const mode = getMode();
   const noise = getOpt("noise");
   const format = resolveFormat(getOpt("format"));
-  const quiet = isMobile && !DEBUG;
+  const quiet = !DEBUG;
 
   try {
     setStatus("Preparando…");
@@ -341,7 +341,7 @@ async function run() {
     const parts = [];
     if (resized && !quiet) parts.push(`imagen ajustada a ${W} × ${H} px para ${cap < maxPixels ? "terminar en unos " + Math.round(TIME_BUDGET / 60) + " min" : "poder procesarla"}`);
     if (!info.gpu && !crossOriginIsolated && !quiet) parts.push("tu navegador no permite varios hilos, por eso es más lento");
-    if (DEBUG) parts.push(`[orig-diag-v22 · ${mode} · ${info.label} ${info.dtype} · multihilo ${crossOriginIsolated ? "sí" : "no"} · núcleos ${navigator.hardwareConcurrency || "?"} · RAM ${navigator.deviceMemory || "?"} GB · ${(tpp * 1000).toFixed(2)} ms/px · tope ${cap} px · mosaico ${TILE}+${PAD} · ajustado ${adjusted}]`);
+    if (DEBUG) parts.push(`[orig-diag-v23 · ${mode} · ${info.label} ${info.dtype} · multihilo ${crossOriginIsolated ? "sí" : "no"} · núcleos ${navigator.hardwareConcurrency || "?"} · RAM ${navigator.deviceMemory || "?"} GB · ${(tpp * 1000).toFixed(2)} ms/px · tope ${cap} px · mosaico ${TILE}+${PAD} · ajustado ${adjusted}]`);
     note = parts.length ? " · " + parts.join(" · ") : "";
 
     const flat = document.createElement("canvas"); flat.width = W; flat.height = H;
@@ -369,7 +369,7 @@ async function run() {
     let done = 0;
     const t0 = performance.now();
     bar.classList.remove("hidden"); bar.value = 0;
-    setStatus("Mejorando…" + note);
+    setStatus("Mejorando…" + (DEBUG ? note : ""));
 
     for (let ty = 0; ty < tilesY; ty++) {
       for (let tx = 0; tx < tilesX; tx++) {
@@ -404,13 +404,14 @@ async function run() {
         done++; bar.value = done / total;
         const elapsed = (performance.now() - t0) / 1000;
         const eta = (elapsed / done) * (total - done);
-        setStatus(done < total ? `Mejorando… quedan aprox. ${fmtTime(eta)}${note}` : "Terminando…");
+        if (done >= total) setStatus("Terminando…");
+        else setStatus(DEBUG ? `Mejorando… quedan aprox. ${fmtTime(eta)}${note}` : "Mejorando…");
         if (tpp > 0 && !adjusted && done === 3 && total > 6) {
           const projected = (elapsed / done) * total;
           if (projected > TIME_BUDGET * 1.5) {
             cap = Math.max(40000, Math.floor(W * H * (TIME_BUDGET / projected) * 0.9));
             adjusted = true;
-            setStatus(quiet ? "Mejorando…" : "Ajustando el tamaño para terminar en unos " + Math.round(TIME_BUDGET / 60) + " min…");
+            setStatus("Mejorando…");
             continue pass;
           }
         }
