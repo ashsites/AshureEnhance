@@ -20,7 +20,7 @@ const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
   (navigator.maxTouchPoints > 1 && Math.min(screen.width, screen.height) < 820);
 
 let srcImg = null, srcName = "imagen", srcType = "image/png", lastFormat = "png", currentUrl = null;
-let worker = null, readyPromise = null, readyMode = null, info = null, cancelled = false, running = false;
+let worker = null, readyPromise = null, readyMode = null, info = null, cancelled = false, running = false, loadingModel = false;
 let attempts = [], attemptIdx = -1, verified = false, initToken = 0;
 const errors = [];
 const rejectors = new Set();
@@ -37,6 +37,13 @@ modeRadios.forEach(r => r.addEventListener("change", () => {
 
 function setStatus(t) { $("status").textContent = t; }
 
+function refreshUI() {
+  const busy = loadingModel || running;
+  go.disabled = !srcImg || busy;
+  $("change").classList.toggle("hidden", !srcImg || busy);
+  cancelBtn.classList.toggle("hidden", !busy);
+}
+
 function load(file) {
   if (!file.type.startsWith("image/")) return setStatus("Ese archivo no es una imagen.");
   srcName = file.name.replace(/\.[^.]+$/, "");
@@ -51,16 +58,16 @@ function load(file) {
     $("preview").src = url;
     $("previewWrap").classList.remove("hidden");
     $("info").textContent = `Original: ${img.naturalWidth} × ${img.naturalHeight} px`;
-    go.disabled = false;
     $("resultCard").classList.add("hidden");
     setStatus("");
 
     initWorker().catch(() => {});
+    refreshUI();
   };
   img.src = url;
 }
 
-go.onclick = () => { if (srcImg && !running) dlg.showModal(); };
+go.onclick = () => { if (srcImg && !running && !loadingModel) dlg.showModal(); };
 $("optsCancel").onclick = () => dlg.close();
 dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close(); });
 $("optsDone").onclick = () => { dlg.close(); run(); };
@@ -96,7 +103,7 @@ async function buildAttempts(mode) {
 }
 
 function spawn(cfg, mode) {
-  const w = new Worker("worker.js?v=21", { type: "module" });
+  const w = new Worker("worker.js?v=22", { type: "module" });
   return new Promise((resolve, reject) => {
     let settled = false;
     const fail = err => {
@@ -132,6 +139,7 @@ function spawn(cfg, mode) {
 
 async function initFrom(start, mode) {
   for (let i = start; i < attempts.length; i++) {
+    if (cancelled) throw new Error("cancelado");
     try {
       await spawn(attempts[i], mode);
       attemptIdx = i;
@@ -152,6 +160,9 @@ function initWorker() {
   killWorker();
   readyMode = mode;
   const token = ++initToken;
+  if (!running) cancelled = false;
+  loadingModel = true;
+  refreshUI();
   const p = (async () => {
     errors.length = 0; verified = false; attemptIdx = -1;
     const list = await buildAttempts(mode);
@@ -160,6 +171,13 @@ function initWorker() {
     await initFrom(0, mode);
   })();
   readyPromise = p;
+  const settle = () => {
+    if (token !== initToken) return;
+    loadingModel = false;
+    if (!running) bar.classList.add("hidden");
+    refreshUI();
+  };
+  p.then(settle, settle);
   p.catch(() => { if (readyPromise === p) killWorker(); });
   return p;
 }
@@ -282,11 +300,10 @@ function resolveFormat(choice) {
 
 async function run() {
   if (!srcImg || running) return;
-  go.disabled = true; cancelled = false; running = true;
+  cancelled = false; running = true;
+  refreshUI();
   allRadios.forEach(r => { r.disabled = true; });
   let stage = "init";
-  cancelBtn.classList.remove("hidden");
-  $("change").classList.add("hidden");
 
   const scale = +getOpt("scale");
   const mode = getMode();
@@ -324,7 +341,7 @@ async function run() {
     const parts = [];
     if (resized && !quiet) parts.push(`imagen ajustada a ${W} × ${H} px para ${cap < maxPixels ? "terminar en unos " + Math.round(TIME_BUDGET / 60) + " min" : "poder procesarla"}`);
     if (!info.gpu && !crossOriginIsolated && !quiet) parts.push("tu navegador no permite varios hilos, por eso es más lento");
-    if (DEBUG) parts.push(`[orig-diag-v21 · ${mode} · ${info.label} ${info.dtype} · multihilo ${crossOriginIsolated ? "sí" : "no"} · núcleos ${navigator.hardwareConcurrency || "?"} · RAM ${navigator.deviceMemory || "?"} GB · ${(tpp * 1000).toFixed(2)} ms/px · tope ${cap} px · mosaico ${TILE}+${PAD} · ajustado ${adjusted}]`);
+    if (DEBUG) parts.push(`[orig-diag-v22 · ${mode} · ${info.label} ${info.dtype} · multihilo ${crossOriginIsolated ? "sí" : "no"} · núcleos ${navigator.hardwareConcurrency || "?"} · RAM ${navigator.deviceMemory || "?"} GB · ${(tpp * 1000).toFixed(2)} ms/px · tope ${cap} px · mosaico ${TILE}+${PAD} · ajustado ${adjusted}]`);
     note = parts.length ? " · " + parts.join(" · ") : "";
 
     const flat = document.createElement("canvas"); flat.width = W; flat.height = H;
@@ -435,14 +452,12 @@ async function run() {
     running = false;
     allRadios.forEach(r => { r.disabled = false; });
     bar.classList.add("hidden");
-    cancelBtn.classList.add("hidden");
-    $("change").classList.remove("hidden");
-    go.disabled = false;
+    refreshUI();
   }
 }
 
 function resetAll() {
-  if (running) return;
+  if (running || loadingModel) return;
   srcImg = null;
   if (currentUrl) { URL.revokeObjectURL(currentUrl); currentUrl = null; }
   fileInput.value = "";
@@ -453,7 +468,7 @@ function resetAll() {
   $("info").textContent = "";
   $("resInfo").textContent = "";
   setStatus("");
-  go.disabled = true;
+  refreshUI();
   drop.classList.remove("hidden");
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -464,6 +479,7 @@ cancelBtn.onclick = () => {
   cancelled = true;
   abortAll("cancelado");
   killWorker();
+  if (!running) { setStatus("Cancelado."); bar.classList.add("hidden"); }
 };
 
 $("download").onclick = () => {
