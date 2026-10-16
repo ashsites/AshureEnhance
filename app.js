@@ -1,5 +1,5 @@
 const S = 4;
-const PHOTO_BLEND = 0.25; 
+const PHOTO_BLEND = 0.25; // 0 = solo IA (más plástico) · 0.35 = más natural, menos nítido
 
 const $ = id => document.getElementById(id);
 const drop = $("drop"), fileInput = $("file"), go = $("go"), bar = $("bar"), cancelBtn = $("cancel");
@@ -68,7 +68,8 @@ function load(file) {
 
 go.onclick = () => { if (srcImg && !running) dlg.showModal(); };
 $("optsCancel").onclick = () => dlg.close();
-dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close(); });
+// El cuadro de opciones solo se cierra con Cancelar o Listo (no al hacer clic fuera ni con Esc).
+dlg.addEventListener("cancel", e => e.preventDefault());
 $("optsDone").onclick = () => { dlg.close(); run(); };
 
 function abortAll(reason) {
