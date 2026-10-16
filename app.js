@@ -1,5 +1,4 @@
 const S = 4;
-const TIME_BUDGET = 600;
 
 const $ = id => document.getElementById(id);
 const drop = $("drop"), fileInput = $("file"), go = $("go"), bar = $("bar"), cancelBtn = $("cancel");
@@ -124,7 +123,7 @@ function spawn(cfg, mode) {
       type: "init",
       device: cfg.device,
       dtype: cfg.dtype,
-      // Restaurado: modelo original especializado en ilustraciones para el modo Arte.
+      // Modelo original especializado en ilustraciones para el modo Arte.
       model: mode === "art" ? "anime" : (useHeavy(cfg, mode) ? "plus" : "lite"),
       threads: Math.min(4, navigator.hardwareConcurrency || 1)
     });
@@ -212,12 +211,13 @@ async function runTile(rgb, width, height) {
   }
 }
 
+// Los límites dependen solo de la memoria disponible, nunca de la velocidad.
 function limits() {
   const gpu = info && info.gpu;
   const heavy = useHeavy(info, getMode());
   const weak = isMobile && ((navigator.deviceMemory || 4) <= 2 || (navigator.hardwareConcurrency || 4) <= 4);
   return {
-    tile: heavy ? 96 : ((isMobile && getMode() === "photo") ? 128 : ((!gpu || isMobile) ? 96 : 128)),
+    tile: heavy ? 96 : (weak ? 96 : 128),
     maxPixels: isMobile ? (weak ? 400000 : 1100000) : (gpu ? 1600000 : 1000000),
   };
 }
@@ -306,34 +306,21 @@ async function run() {
   try {
     setStatus("Preparando…");
     await initWorker();
-    let tpp = 0;
-    if (!info.gpu) {
-      await runTile(new Uint8ClampedArray(32 * 32 * 3).fill(128), 32, 32);
-      for (let k = 0; k < 2; k++) {
-        const tc = performance.now();
-        await runTile(new Uint8ClampedArray(64 * 64 * 3).fill(128), 64, 64);
-        tpp = Math.max(tpp, (performance.now() - tc) / 1000 / (64 * 64));
-      }
-      verified = false;
-    }
+
     const heavy = useHeavy(info, mode);
     const PAD = padFor(mode, heavy);
     const { tile: TILE, maxPixels } = limits();
-    let cap = maxPixels;
-    if (tpp > 0) {
-      const fit = Math.floor(TIME_BUDGET / (tpp * ((TILE + 2 * PAD) / TILE) ** 2 * 1.1));
-      cap = Math.max(40000, Math.min(maxPixels, fit));
-    }
-    let inCanvas, resized, out, octx, hasAlpha, keep, adjusted = false;
-    pass: for (;;) {
-    ({ canvas: inCanvas, resized } = toCanvas(srcImg, cap));
+
+    // Solo se limita por memoria, nunca por velocidad del equipo.
+    const { canvas: inCanvas, resized } = toCanvas(srcImg, maxPixels);
     const W = inCanvas.width, H = inCanvas.height;
 
     const flat = document.createElement("canvas"); flat.width = W; flat.height = H;
     const fctx = flat.getContext("2d");
     fctx.fillStyle = "#fff"; fctx.fillRect(0, 0, W, H); fctx.drawImage(inCanvas, 0, 0);
+
     const alphaData = inCanvas.getContext("2d").getImageData(0, 0, W, H).data;
-    hasAlpha = false;
+    let hasAlpha = false;
     for (let i = 3; i < alphaData.length; i += 4) if (alphaData[i] < 255) { hasAlpha = true; break; }
 
     if (noise !== "none") {
@@ -342,11 +329,12 @@ async function run() {
     }
 
     const tW = srcImg.naturalWidth * scale, tH = srcImg.naturalHeight * scale;
-    keep = resized && tW * tH <= 16000000;
+    const keep = resized && tW * tH <= 16000000;
     const oW = keep ? tW : W * scale, oH = keep ? tH : H * scale;
     const ox = oW / W, oy = oH / H;
-    out = document.createElement("canvas"); out.width = oW; out.height = oH;
-    octx = out.getContext("2d"); octx.imageSmoothingQuality = "high";
+
+    const out = document.createElement("canvas"); out.width = oW; out.height = oH;
+    const octx = out.getContext("2d"); octx.imageSmoothingQuality = "high";
     const tmp = document.createElement("canvas");
     const tctx = tmp.getContext("2d");
 
@@ -367,7 +355,9 @@ async function run() {
 
         const rgba = fctx.getImageData(x0, y0, tw, th).data;
         const rgb = new Uint8ClampedArray(tw * th * 3);
-        for (let i = 0, j = 0; i < rgba.length; i += 4) { rgb[j++] = rgba[i]; rgb[j++] = rgba[i + 1]; rgb[j++] = rgba[i + 2]; }
+        for (let i = 0, j = 0; i < rgba.length; i += 4) {
+          rgb[j++] = rgba[i]; rgb[j++] = rgba[i + 1]; rgb[j++] = rgba[i + 2];
+        }
 
         const res = await runTile(rgb, tw, th);
 
@@ -390,18 +380,7 @@ async function run() {
         const elapsed = (performance.now() - t0) / 1000;
         const eta = (elapsed / done) * (total - done);
         setStatus(done < total ? `Mejorando… quedan aprox. ${fmtTime(eta)}` : "Terminando…");
-        if (tpp > 0 && !adjusted && done === 3 && total > 6) {
-          const projected = (elapsed / done) * total;
-          if (projected > TIME_BUDGET * 1.5) {
-            cap = Math.max(40000, Math.floor(W * H * (TIME_BUDGET / projected) * 0.9));
-            adjusted = true;
-            setStatus("Mejorando…");
-            continue pass;
-          }
-        }
       }
-    }
-    break;
     }
 
     if (hasAlpha) {
