@@ -74,7 +74,7 @@ function killWorker() {
 
 async function buildAttempts(mode) {
   let gpuOk = false;
-  try { gpuOk = !!(navigator.gpu && await navigator.gpu.requestAdapter()); } catch {}
+  try { gpuOk = !isMobile && !!(navigator.gpu && await navigator.gpu.requestAdapter()); } catch {}
   const list = [];
   if (mode === "photo") {
     if (gpuOk) list.push({ device: "webgpu", dtype: "fp32", label: "GPU (WebGPU)", gpu: true });
@@ -88,7 +88,7 @@ async function buildAttempts(mode) {
 }
 
 function spawn(cfg, mode) {
-  const w = new Worker("worker.js?v=17", { type: "module" });
+  const w = new Worker("worker.js?v=18", { type: "module" });
   return new Promise((resolve, reject) => {
     let settled = false;
     const fail = err => {
@@ -314,7 +314,7 @@ async function run() {
     const parts = [];
     if (resized) parts.push(`imagen ajustada a ${W} × ${H} px para ${cap < maxPixels ? "terminar en unos " + Math.round(TIME_BUDGET / 60) + " min" : "poder procesarla"}`);
     if (!info.gpu && !crossOriginIsolated) parts.push("tu navegador no permite varios hilos, por eso es más lento");
-    if (DEBUG) parts.push(`[orig-diag · ${mode} · ${info.label} ${info.dtype} · multihilo ${crossOriginIsolated ? "sí" : "no"} · núcleos ${navigator.hardwareConcurrency || "?"} · RAM ${navigator.deviceMemory || "?"} GB · ${(tpp * 1000).toFixed(2)} ms/px · tope ${cap} px · mosaico ${TILE}+${PAD} · ajustado ${adjusted}]`);
+    if (DEBUG) parts.push(`[orig-diag-v18 · ${mode} · ${info.label} ${info.dtype} · multihilo ${crossOriginIsolated ? "sí" : "no"} · núcleos ${navigator.hardwareConcurrency || "?"} · RAM ${navigator.deviceMemory || "?"} GB · ${(tpp * 1000).toFixed(2)} ms/px · tope ${cap} px · mosaico ${TILE}+${PAD} · ajustado ${adjusted}]`);
     note = parts.length ? " · " + parts.join(" · ") : "";
 
     const flat = document.createElement("canvas"); flat.width = W; flat.height = H;
