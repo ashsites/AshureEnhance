@@ -87,7 +87,7 @@ async function buildAttempts(mode) {
 }
 
 function spawn(cfg, mode) {
-  const w = new Worker("worker.js?v=10", { type: "module" });
+  const w = new Worker("worker.js?v=11", { type: "module" });
   return new Promise((resolve, reject) => {
     let settled = false;
     const fail = err => {
@@ -117,7 +117,7 @@ function spawn(cfg, mode) {
         fail(new Error(m.message));
       }
     };
-    w.postMessage({ type: "init", mode, device: cfg.device, dtype: cfg.dtype, model: useHeavy(cfg, mode) ? "plus" : "lite", threads: isMobile ? 1 : Math.min(4, navigator.hardwareConcurrency || 1) });
+    w.postMessage({ type: "init", mode, device: cfg.device, dtype: cfg.dtype, model: useHeavy(cfg, mode) ? "plus" : "lite", threads: Math.min(4, navigator.hardwareConcurrency || 1) });
   });
 }
 
@@ -196,7 +196,7 @@ function limits() {
   const heavy = useHeavy(info, getMode());
   const weak = isMobile && ((navigator.deviceMemory || 4) <= 2 || (navigator.hardwareConcurrency || 4) <= 4);
   return {
-    tile: heavy ? 96 : ((!gpu || isMobile) ? 96 : 128),
+    tile: heavy ? 96 : ((isMobile && getMode() === "photo") ? 128 : ((!gpu || isMobile) ? 96 : 128)),
     maxPixels: isMobile ? (weak ? 400000 : 1100000) : (gpu ? 1600000 : 1000000),
   };
 }
@@ -287,36 +287,10 @@ async function run() {
     setStatus("Preparando…");
     await initWorker();
     stage = "tiles";
-    const budget = (info.gpu && !isMobile) ? Infinity : 240;
-    let tpp = 0;
-    if (Number.isFinite(budget)) {
-      setStatus("Calculando el mejor tamaño para tu equipo…");
-      await runTile(new Uint8ClampedArray(32 * 32 * 3).fill(128), 32, 32);
-      const tc = performance.now();
-      await runTile(new Uint8ClampedArray(64 * 64 * 3).fill(128), 64, 64);
-      tpp = (performance.now() - tc) / 1000 / (64 * 64);
-      verified = false;
-    }
     const heavy = useHeavy(info, mode);
     const PAD = padFor(mode, heavy);
     const { tile: TILE, maxPixels } = limits();
     const cap = maxPixels;
-    if (tpp > 0) {
-      const srcPixels = srcImg.naturalWidth * srcImg.naturalHeight;
-      const factor = tpp * ((TILE + 2 * PAD) / TILE) ** 2 * (isMobile ? 1.35 : 1);
-      if (srcPixels > maxPixels) {
-        const side = Math.floor(Math.sqrt(maxPixels));
-        setStatus(`Esta imagen es demasiado grande para mejorarla en este equipo. Prueba con una de hasta ${side} × ${side} px aproximadamente.`);
-        return;
-      }
-      if (srcPixels * factor > budget) {
-        const mins = Math.max(1, Math.round(srcPixels * factor / 60));
-        if (!confirm(`Mejorar esta imagen tardará unos ${mins} min en este equipo y puede dejarlo lento. ¿Continuar?`)) {
-          setStatus("Cancelado.");
-          return;
-        }
-      }
-    }
     let inCanvas, resized, out, octx, hasAlpha;
     pass: for (;;) {
     ({ canvas: inCanvas, resized } = toCanvas(srcImg, cap));
@@ -357,9 +331,7 @@ async function run() {
         const rgb = new Uint8ClampedArray(tw * th * 3);
         for (let i = 0, j = 0; i < rgba.length; i += 4) { rgb[j++] = rgba[i]; rgb[j++] = rgba[i + 1]; rgb[j++] = rgba[i + 2]; }
 
-        const ts = performance.now();
         const res = await runTile(rgb, tw, th);
-        const spent = performance.now() - ts;
 
         const rw = res.width, rh = res.height, ch = res.channels;
         tmp.width = rw; tmp.height = rh;
@@ -378,7 +350,6 @@ async function run() {
         const elapsed = (performance.now() - t0) / 1000;
         const eta = (elapsed / done) * (total - done);
         setStatus(done < total ? `Mejorando… quedan aprox. ${fmtTime(eta)}` : "Terminando…");
-        if (isMobile) await new Promise(r => setTimeout(r, Math.max(60, spent * 0.35)));
       }
     }
     break;
