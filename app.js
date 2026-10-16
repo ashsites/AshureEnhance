@@ -12,7 +12,8 @@ const getMode = () => getOpt("mode");
 
 const useHeavy = (cfg, mode) => mode === "photo" && !!cfg && cfg.gpu && !isMobile;
 
-const padFor = (mode, heavy) => (mode === "photo" ? (heavy ? 20 : (isMobile ? 10 : 24)) : 24);
+const padFor = (mode, heavy) =>
+  mode === "photo" ? (heavy ? 20 : (isMobile ? 10 : 24)) : 24;
 
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
   (navigator.maxTouchPoints > 1 && Math.min(screen.width, screen.height) < 820);
@@ -90,7 +91,7 @@ async function buildAttempts() {
 }
 
 function spawn(cfg, mode) {
-  const w = new Worker("worker.js?v=24", { type: "module" });
+  const w = new Worker("worker.js?v=25", { type: "module" });
   return new Promise((resolve, reject) => {
     let settled = false;
     const fail = err => {
@@ -119,9 +120,14 @@ function spawn(cfg, mode) {
         fail(new Error(m.message));
       }
     };
-    w.postMessage({ type: "init", device: cfg.device, dtype: cfg.dtype, model: mode === "art"
-  ? "anime"
-  : (useHeavy(cfg, mode) ? "plus" : "lite"), threads: Math.min(4, navigator.hardwareConcurrency || 1) });
+    w.postMessage({
+      type: "init",
+      device: cfg.device,
+      dtype: cfg.dtype,
+      // Restaurado: modelo original especializado en ilustraciones para el modo Arte.
+      model: mode === "art" ? "anime" : (useHeavy(cfg, mode) ? "plus" : "lite"),
+      threads: Math.min(4, navigator.hardwareConcurrency || 1)
+    });
   });
 }
 
