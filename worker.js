@@ -50,6 +50,9 @@ async function initArt(m) {
   const tjs = await import(TJS_URL);
   tjs.env.allowLocalModels = false;
   RawImage = tjs.RawImage;
+  if (tjs.env.backends && tjs.env.backends.onnx && tjs.env.backends.onnx.wasm) {
+    tjs.env.backends.onnx.wasm.numThreads = self.crossOriginIsolated ? Math.max(1, m.threads || 1) : 1;
+  }
   upscaler = await tjs.pipeline("image-to-image", ART_MODEL, {
     device: m.device,
     dtype: m.dtype,
@@ -60,7 +63,7 @@ async function initArt(m) {
 async function initPhoto(m) {
   ort = await import(ORT_URL);
   ort.env.wasm.wasmPaths = ORT_BASE;
-  ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, self.navigator.hardwareConcurrency || 1) : 1;
+  ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.max(1, m.threads || 1) : 1;
   const bytes = await fetchModel(PHOTO_MODELS[m.model] || PHOTO_MODELS.lite);
   session = await ort.InferenceSession.create(bytes, {
     executionProviders: [m.device],
