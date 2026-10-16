@@ -87,7 +87,7 @@ async function buildAttempts(mode) {
 }
 
 function spawn(cfg, mode) {
-  const w = new Worker("worker.js?v=6", { type: "module" });
+  const w = new Worker("worker.js?v=8", { type: "module" });
   return new Promise((resolve, reject) => {
     let settled = false;
     const fail = err => {
@@ -117,7 +117,7 @@ function spawn(cfg, mode) {
         fail(new Error(m.message));
       }
     };
-    w.postMessage({ type: "init", mode, device: cfg.device, dtype: cfg.dtype, model: useHeavy(cfg, mode) ? "plus" : "lite", threads: isMobile ? 2 : Math.min(4, navigator.hardwareConcurrency || 1) });
+    w.postMessage({ type: "init", mode, device: cfg.device, dtype: cfg.dtype, model: useHeavy(cfg, mode) ? "plus" : "lite", threads: isMobile ? 1 : Math.min(4, navigator.hardwareConcurrency || 1) });
   });
 }
 
@@ -196,8 +196,8 @@ function limits() {
   const heavy = useHeavy(info, getMode());
   const weak = isMobile && ((navigator.deviceMemory || 4) <= 4 || (navigator.hardwareConcurrency || 4) <= 4);
   return {
-    tile: heavy ? 96 : ((isMobile && getMode() === "photo") ? 128 : ((!gpu || isMobile) ? 96 : 128)),
-    maxPixels: isMobile ? (weak ? 250000 : 450000) : (gpu ? 1600000 : 1000000),
+    tile: heavy ? 96 : ((!gpu || isMobile) ? 96 : 128),
+    maxPixels: isMobile ? (weak ? 400000 : 700000) : (gpu ? 1600000 : 1000000),
   };
 }
 
@@ -271,6 +271,29 @@ function resolveFormat(choice) {
   return "png";
 }
 
+async function fastUpscale(src, scale) {
+  const w = src.width * scale, h = src.height * scale;
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  const ctx = c.getContext("2d");
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(src, 0, 0, w, h);
+  const img = ctx.getImageData(0, 0, w, h);
+  const s = img.data, o = new Uint8ClampedArray(s), row = w * 4, k = 0.35;
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const i = y * row + x * 4;
+      for (let q = 0; q < 3; q++) {
+        const j = i + q;
+        s[j] = o[j] * (1 + 4 * k) - k * (o[j - 4] + o[j + 4] + o[j - row] + o[j + row]);
+      }
+    }
+    if (y % 64 === 0) await new Promise(r => setTimeout(r));
+    if (cancelled) throw new Error("cancelado");
+  }
+  ctx.putImageData(img, 0, 0);
+  return c;
+}
+
 async function run() {
   if (!srcImg || running) return;
   go.disabled = true; cancelled = false; running = true;
@@ -300,14 +323,29 @@ async function run() {
     const heavy = useHeavy(info, mode);
     const PAD = padFor(mode, heavy);
     const { tile: TILE, maxPixels } = limits();
-    let cap = maxPixels;
+    let cap = maxPixels, fast = false;
     if (tpp > 0) {
-      const overhead = ((TILE + 2 * PAD) / TILE) ** 2;
-      cap = Math.max(40000, Math.min(maxPixels, Math.floor(budget / (tpp * overhead))));
+      const srcPixels = srcImg.naturalWidth * srcImg.naturalHeight;
+      const factor = tpp * ((TILE + 2 * PAD) / TILE) ** 2 * (isMobile ? 1.35 : 1);
+      if (srcPixels > maxPixels) {
+        fast = true;
+      } else if (srcPixels * factor > budget) {
+        const mins = Math.max(1, Math.round(srcPixels * factor / 60));
+        const ok = confirm(`Mejorar esta imagen con IA tardará unos ${mins} min en este equipo y puede dejarlo lento.\n\nAceptar: mejorar con IA (lento).\nCancelar: ampliación rápida, sin IA (unos segundos).`);
+        if (ok) cap = srcPixels; else fast = true;
+      }
+      if (fast) cap = Math.min(srcPixels, Math.floor(12000000 / (scale * scale)));
     }
-    let shrunk = false, inCanvas, resized, out, octx, hasAlpha;
+    let inCanvas, resized, out, octx, hasAlpha;
     pass: for (;;) {
     ({ canvas: inCanvas, resized } = toCanvas(srcImg, cap));
+    if (fast) {
+      setStatus("Ampliando…");
+      out = await fastUpscale(inCanvas, scale);
+      octx = out.getContext("2d");
+      hasAlpha = false;
+      break;
+    }
     const W = inCanvas.width, H = inCanvas.height;
 
     const flat = document.createElement("canvas"); flat.width = W; flat.height = H;
@@ -345,7 +383,9 @@ async function run() {
         const rgb = new Uint8ClampedArray(tw * th * 3);
         for (let i = 0, j = 0; i < rgba.length; i += 4) { rgb[j++] = rgba[i]; rgb[j++] = rgba[i + 1]; rgb[j++] = rgba[i + 2]; }
 
+        const ts = performance.now();
         const res = await runTile(rgb, tw, th);
+        const spent = performance.now() - ts;
 
         const rw = res.width, rh = res.height, ch = res.channels;
         tmp.width = rw; tmp.height = rh;
@@ -364,16 +404,7 @@ async function run() {
         const elapsed = (performance.now() - t0) / 1000;
         const eta = (elapsed / done) * (total - done);
         setStatus(done < total ? `Mejorando… quedan aprox. ${fmtTime(eta)}` : "Terminando…");
-        if (isMobile) await new Promise(r => setTimeout(r, 60));
-        if (!shrunk && done === 2 && total > 4 && Number.isFinite(budget)) {
-          const projected = (elapsed / done) * total;
-          if (projected > budget) {
-            cap = Math.max(40000, Math.floor(W * H * (budget / projected) * 0.9));
-            shrunk = true;
-            setStatus("Ajustando el tamaño para que termine más rápido…");
-            continue pass;
-          }
-        }
+        if (isMobile) await new Promise(r => setTimeout(r, Math.max(60, spent * 0.35)));
       }
     }
     break;
@@ -394,7 +425,7 @@ async function run() {
     lastFormat = format;
     $("download").textContent = "Descargar " + format.toUpperCase();
     $("resInfo").textContent = `Tamaño: ${out.width} × ${out.height} px` +
-      (resized ? (shrunk ? ` (se redujo la imagen original para que terminara en un tiempo razonable en este equipo)` : ` (se ajustó el tamaño de la imagen original para poder procesarla)`) : "");
+      (fast ? ` (ampliación rápida sin IA, para que no se trabe tu equipo)` : resized ? ` (se ajustó el tamaño de la imagen original para poder procesarla)` : "");
     $("resultCard").classList.remove("hidden");
     setStatus("¡Listo!");
   } catch (e) {
