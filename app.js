@@ -81,14 +81,19 @@ async function buildAttempts(mode) {
     list.push({ device: "wasm", dtype: "fp32", label: "Procesador (lento)", gpu: false });
   } else {
     if (gpuOk) list.push({ device: "webgpu", dtype: "fp32", label: "GPU (WebGPU)", gpu: true });
-    list.push({ device: "wasm", dtype: "q8",   label: "Procesador (lento)", gpu: false });
-    list.push({ device: "wasm", dtype: "fp32", label: "Procesador (lento)", gpu: false });
+    if (isMobile) {
+      list.push({ device: "wasm", dtype: "fp32", label: "Procesador (lento)", gpu: false });
+      list.push({ device: "wasm", dtype: "q8",   label: "Procesador (lento)", gpu: false });
+    } else {
+      list.push({ device: "wasm", dtype: "q8",   label: "Procesador (lento)", gpu: false });
+      list.push({ device: "wasm", dtype: "fp32", label: "Procesador (lento)", gpu: false });
+    }
   }
   return list;
 }
 
 function spawn(cfg, mode) {
-  const w = new Worker("worker.js?v=18", { type: "module" });
+  const w = new Worker("worker.js?v=19", { type: "module" });
   return new Promise((resolve, reject) => {
     let settled = false;
     const fail = err => {
@@ -314,7 +319,7 @@ async function run() {
     const parts = [];
     if (resized) parts.push(`imagen ajustada a ${W} × ${H} px para ${cap < maxPixels ? "terminar en unos " + Math.round(TIME_BUDGET / 60) + " min" : "poder procesarla"}`);
     if (!info.gpu && !crossOriginIsolated) parts.push("tu navegador no permite varios hilos, por eso es más lento");
-    if (DEBUG) parts.push(`[orig-diag-v18 · ${mode} · ${info.label} ${info.dtype} · multihilo ${crossOriginIsolated ? "sí" : "no"} · núcleos ${navigator.hardwareConcurrency || "?"} · RAM ${navigator.deviceMemory || "?"} GB · ${(tpp * 1000).toFixed(2)} ms/px · tope ${cap} px · mosaico ${TILE}+${PAD} · ajustado ${adjusted}]`);
+    if (DEBUG) parts.push(`[orig-diag-v19 · ${mode} · ${info.label} ${info.dtype} · multihilo ${crossOriginIsolated ? "sí" : "no"} · núcleos ${navigator.hardwareConcurrency || "?"} · RAM ${navigator.deviceMemory || "?"} GB · ${(tpp * 1000).toFixed(2)} ms/px · tope ${cap} px · mosaico ${TILE}+${PAD} · ajustado ${adjusted}]`);
     note = parts.length ? " · " + parts.join(" · ") : "";
 
     const flat = document.createElement("canvas"); flat.width = W; flat.height = H;
