@@ -87,7 +87,7 @@ async function buildAttempts(mode) {
 }
 
 function spawn(cfg, mode) {
-  const w = new Worker("worker.js?v=4", { type: "module" });
+  const w = new Worker("worker.js?v=5", { type: "module" });
   return new Promise((resolve, reject) => {
     let settled = false;
     const fail = err => {
