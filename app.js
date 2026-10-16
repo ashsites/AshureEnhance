@@ -88,7 +88,7 @@ async function buildAttempts(mode) {
 }
 
 function spawn(cfg, mode) {
-  const w = new Worker("worker.js?v=12", { type: "module" });
+  const w = new Worker("worker.js?v=14", { type: "module" });
   return new Promise((resolve, reject) => {
     let settled = false;
     const fail = err => {
@@ -292,9 +292,11 @@ async function run() {
     if (!info.gpu) {
       setStatus("Calculando el mejor tamaño para tu equipo…");
       await runTile(new Uint8ClampedArray(32 * 32 * 3).fill(128), 32, 32);
-      const tc = performance.now();
-      await runTile(new Uint8ClampedArray(64 * 64 * 3).fill(128), 64, 64);
-      tpp = (performance.now() - tc) / 1000 / (64 * 64);
+      for (let k = 0; k < 2; k++) {
+        const tc = performance.now();
+        await runTile(new Uint8ClampedArray(64 * 64 * 3).fill(128), 64, 64);
+        tpp = Math.max(tpp, (performance.now() - tc) / 1000 / (64 * 64));
+      }
       verified = false;
     }
     const heavy = useHeavy(info, mode);
@@ -305,7 +307,7 @@ async function run() {
       const fit = Math.floor(TIME_BUDGET / (tpp * ((TILE + 2 * PAD) / TILE) ** 2 * 1.1));
       cap = Math.max(40000, Math.min(maxPixels, fit));
     }
-    let inCanvas, resized, out, octx, hasAlpha, keep, note;
+    let inCanvas, resized, out, octx, hasAlpha, keep, note, adjusted = false;
     pass: for (;;) {
     ({ canvas: inCanvas, resized } = toCanvas(srcImg, cap));
     const W = inCanvas.width, H = inCanvas.height;
@@ -375,6 +377,15 @@ async function run() {
         const elapsed = (performance.now() - t0) / 1000;
         const eta = (elapsed / done) * (total - done);
         setStatus(done < total ? `Mejorando… quedan aprox. ${fmtTime(eta)}${note}` : "Terminando…");
+        if (tpp > 0 && !adjusted && done === 3 && total > 6) {
+          const projected = (elapsed / done) * total;
+          if (projected > TIME_BUDGET * 1.5) {
+            cap = Math.max(40000, Math.floor(W * H * (TIME_BUDGET / projected) * 0.9));
+            adjusted = true;
+            setStatus("Ajustando el tamaño para terminar en unos " + Math.round(TIME_BUDGET / 60) + " min…");
+            continue pass;
+          }
+        }
       }
     }
     break;
