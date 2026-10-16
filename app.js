@@ -13,7 +13,7 @@ const getMode = () => getOpt("mode");
 
 const useHeavy = (cfg, mode) => mode === "photo" && !!cfg && cfg.gpu && !isMobile;
 
-const padFor = (mode, heavy) => (mode === "photo" ? (heavy ? 20 : (isMobile ? 16 : 24)) : 24);
+const padFor = (mode, heavy) => (mode === "photo" ? (heavy ? 20 : (isMobile ? 10 : 24)) : 24);
 
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
   (navigator.maxTouchPoints > 1 && Math.min(screen.width, screen.height) < 820);
@@ -196,7 +196,7 @@ function limits() {
   const heavy = useHeavy(info, getMode());
   const weak = isMobile && ((navigator.deviceMemory || 4) <= 4 || (navigator.hardwareConcurrency || 4) <= 4);
   return {
-    tile: heavy ? 96 : ((!gpu || isMobile) ? 96 : 128),
+    tile: heavy ? 96 : ((isMobile && getMode() === "photo") ? 128 : ((!gpu || isMobile) ? 96 : 128)),
     maxPixels: isMobile ? (weak ? 250000 : 450000) : (gpu ? 1600000 : 1000000),
   };
 }
@@ -290,14 +290,17 @@ async function run() {
     const heavy = useHeavy(info, mode);
     const PAD = padFor(mode, heavy);
     const { tile: TILE, maxPixels } = limits();
-    const { canvas: inCanvas, resized } = toCanvas(srcImg, maxPixels);
+    const budget = (info.gpu && !isMobile) ? Infinity : 240;
+    let cap = maxPixels, shrunk = false, inCanvas, resized, out, octx, hasAlpha;
+    pass: for (;;) {
+    ({ canvas: inCanvas, resized } = toCanvas(srcImg, cap));
     const W = inCanvas.width, H = inCanvas.height;
 
     const flat = document.createElement("canvas"); flat.width = W; flat.height = H;
     const fctx = flat.getContext("2d");
     fctx.fillStyle = "#fff"; fctx.fillRect(0, 0, W, H); fctx.drawImage(inCanvas, 0, 0);
     const alphaData = inCanvas.getContext("2d").getImageData(0, 0, W, H).data;
-    let hasAlpha = false;
+    hasAlpha = false;
     for (let i = 3; i < alphaData.length; i += 4) if (alphaData[i] < 255) { hasAlpha = true; break; }
 
     if (noise !== "none") {
@@ -305,8 +308,8 @@ async function run() {
       await denoise(fctx, W, H, noise);
     }
 
-    const out = document.createElement("canvas"); out.width = W * scale; out.height = H * scale;
-    const octx = out.getContext("2d"); octx.imageSmoothingQuality = "high";
+    out = document.createElement("canvas"); out.width = W * scale; out.height = H * scale;
+    octx = out.getContext("2d"); octx.imageSmoothingQuality = "high";
     const tmp = document.createElement("canvas");
     const tctx = tmp.getContext("2d");
 
@@ -347,7 +350,18 @@ async function run() {
         const elapsed = (performance.now() - t0) / 1000;
         const eta = (elapsed / done) * (total - done);
         setStatus(done < total ? `Mejorando… quedan aprox. ${fmtTime(eta)}` : "Terminando…");
+        if (!shrunk && done === 2 && total > 4 && Number.isFinite(budget)) {
+          const projected = (elapsed / done) * total;
+          if (projected > budget) {
+            cap = Math.max(40000, Math.floor(W * H * (budget / projected) * 0.9));
+            shrunk = true;
+            setStatus("Ajustando el tamaño para que termine más rápido…");
+            continue pass;
+          }
+        }
       }
+    }
+    break;
     }
 
     if (hasAlpha) {
@@ -365,7 +379,7 @@ async function run() {
     lastFormat = format;
     $("download").textContent = "Descargar " + format.toUpperCase();
     $("resInfo").textContent = `Tamaño: ${out.width} × ${out.height} px` +
-      (resized ? ` (se ajustó el tamaño de la imagen original para poder procesarla)` : "");
+      (resized ? (shrunk ? ` (se redujo la imagen original para que terminara en un tiempo razonable en este equipo)` : ` (se ajustó el tamaño de la imagen original para poder procesarla)`) : "");
     $("resultCard").classList.remove("hidden");
     setStatus("¡Listo!");
   } catch (e) {
