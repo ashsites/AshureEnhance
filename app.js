@@ -88,7 +88,7 @@ async function buildAttempts(mode) {
 }
 
 function spawn(cfg, mode) {
-  const w = new Worker("worker.js?v=15", { type: "module" });
+  const w = new Worker("worker.js?v=17", { type: "module" });
   return new Promise((resolve, reject) => {
     let settled = false;
     const fail = err => {
@@ -288,33 +288,33 @@ async function run() {
     setStatus("Preparando…");
     await initWorker();
     stage = "tiles";
-    const heavy = useHeavy(info, mode);
-    const PAD = padFor(mode, heavy);
-    const { tile: TILE, maxPixels } = limits();
     let tpp = 0;
     if (!info.gpu) {
       setStatus("Calculando el mejor tamaño para tu equipo…");
-      const cs = TILE + 2 * PAD;
       await runTile(new Uint8ClampedArray(32 * 32 * 3).fill(128), 32, 32);
       for (let k = 0; k < 2; k++) {
         const tc = performance.now();
-        await runTile(new Uint8ClampedArray(cs * cs * 3).fill(128), cs, cs);
-        tpp = Math.max(tpp, (performance.now() - tc) / 1000 / (cs * cs));
+        await runTile(new Uint8ClampedArray(64 * 64 * 3).fill(128), 64, 64);
+        tpp = Math.max(tpp, (performance.now() - tc) / 1000 / (64 * 64));
       }
       verified = false;
     }
+    const heavy = useHeavy(info, mode);
+    const PAD = padFor(mode, heavy);
+    const { tile: TILE, maxPixels } = limits();
     let cap = maxPixels;
     if (tpp > 0) {
       const fit = Math.floor(TIME_BUDGET / (tpp * ((TILE + 2 * PAD) / TILE) ** 2 * 1.1));
       cap = Math.max(40000, Math.min(maxPixels, fit));
     }
-    let inCanvas, resized, out, octx, hasAlpha, keep, note, adjustments = 0;
+    let inCanvas, resized, out, octx, hasAlpha, keep, note, adjusted = false;
     pass: for (;;) {
     ({ canvas: inCanvas, resized } = toCanvas(srcImg, cap));
     const W = inCanvas.width, H = inCanvas.height;
     const parts = [];
     if (resized) parts.push(`imagen ajustada a ${W} × ${H} px para ${cap < maxPixels ? "terminar en unos " + Math.round(TIME_BUDGET / 60) + " min" : "poder procesarla"}`);
     if (!info.gpu && !crossOriginIsolated) parts.push("tu navegador no permite varios hilos, por eso es más lento");
+    if (DEBUG) parts.push(`[orig-diag · ${mode} · ${info.label} ${info.dtype} · multihilo ${crossOriginIsolated ? "sí" : "no"} · núcleos ${navigator.hardwareConcurrency || "?"} · RAM ${navigator.deviceMemory || "?"} GB · ${(tpp * 1000).toFixed(2)} ms/px · tope ${cap} px · mosaico ${TILE}+${PAD} · ajustado ${adjusted}]`);
     note = parts.length ? " · " + parts.join(" · ") : "";
 
     const flat = document.createElement("canvas"); flat.width = W; flat.height = H;
@@ -378,11 +378,11 @@ async function run() {
         const elapsed = (performance.now() - t0) / 1000;
         const eta = (elapsed / done) * (total - done);
         setStatus(done < total ? `Mejorando… quedan aprox. ${fmtTime(eta)}${note}` : "Terminando…");
-        if (tpp > 0 && adjustments < 3 && done === 3 && total > 6) {
+        if (tpp > 0 && !adjusted && done === 3 && total > 6) {
           const projected = (elapsed / done) * total;
-          if (projected > TIME_BUDGET * 1.25) {
-            cap = Math.max(40000, Math.floor(W * H * (TIME_BUDGET / projected) * 0.85));
-            adjustments++;
+          if (projected > TIME_BUDGET * 1.5) {
+            cap = Math.max(40000, Math.floor(W * H * (TIME_BUDGET / projected) * 0.9));
+            adjusted = true;
             setStatus("Ajustando el tamaño para terminar en unos " + Math.round(TIME_BUDGET / 60) + " min…");
             continue pass;
           }
