@@ -1,4 +1,5 @@
 const S = 4;
+const TIME_BUDGET = 180;
 
 const DEBUG = new URLSearchParams(location.search).has("debug");
 
@@ -87,7 +88,7 @@ async function buildAttempts(mode) {
 }
 
 function spawn(cfg, mode) {
-  const w = new Worker("worker.js?v=11", { type: "module" });
+  const w = new Worker("worker.js?v=12", { type: "module" });
   return new Promise((resolve, reject) => {
     let settled = false;
     const fail = err => {
@@ -287,14 +288,31 @@ async function run() {
     setStatus("Preparando…");
     await initWorker();
     stage = "tiles";
+    let tpp = 0;
+    if (!info.gpu) {
+      setStatus("Calculando el mejor tamaño para tu equipo…");
+      await runTile(new Uint8ClampedArray(32 * 32 * 3).fill(128), 32, 32);
+      const tc = performance.now();
+      await runTile(new Uint8ClampedArray(64 * 64 * 3).fill(128), 64, 64);
+      tpp = (performance.now() - tc) / 1000 / (64 * 64);
+      verified = false;
+    }
     const heavy = useHeavy(info, mode);
     const PAD = padFor(mode, heavy);
     const { tile: TILE, maxPixels } = limits();
-    const cap = maxPixels;
-    let inCanvas, resized, out, octx, hasAlpha;
+    let cap = maxPixels;
+    if (tpp > 0) {
+      const fit = Math.floor(TIME_BUDGET / (tpp * ((TILE + 2 * PAD) / TILE) ** 2 * 1.1));
+      cap = Math.max(40000, Math.min(maxPixels, fit));
+    }
+    let inCanvas, resized, out, octx, hasAlpha, keep, note;
     pass: for (;;) {
     ({ canvas: inCanvas, resized } = toCanvas(srcImg, cap));
     const W = inCanvas.width, H = inCanvas.height;
+    const parts = [];
+    if (resized) parts.push(`imagen ajustada a ${W} × ${H} px para ${cap < maxPixels ? "terminar en unos " + Math.round(TIME_BUDGET / 60) + " min" : "poder procesarla"}`);
+    if (!info.gpu && !crossOriginIsolated) parts.push("tu navegador no permite varios hilos, por eso es más lento");
+    note = parts.length ? " · " + parts.join(" · ") : "";
 
     const flat = document.createElement("canvas"); flat.width = W; flat.height = H;
     const fctx = flat.getContext("2d");
@@ -308,7 +326,11 @@ async function run() {
       await denoise(fctx, W, H, noise);
     }
 
-    out = document.createElement("canvas"); out.width = W * scale; out.height = H * scale;
+    const tW = srcImg.naturalWidth * scale, tH = srcImg.naturalHeight * scale;
+    keep = resized && tW * tH <= 16000000;
+    const oW = keep ? tW : W * scale, oH = keep ? tH : H * scale;
+    const ox = oW / W, oy = oH / H;
+    out = document.createElement("canvas"); out.width = oW; out.height = oH;
     octx = out.getContext("2d"); octx.imageSmoothingQuality = "high";
     const tmp = document.createElement("canvas");
     const tctx = tmp.getContext("2d");
@@ -317,6 +339,7 @@ async function run() {
     let done = 0;
     const t0 = performance.now();
     bar.classList.remove("hidden"); bar.value = 0;
+    setStatus("Mejorando…" + note);
 
     for (let ty = 0; ty < tilesY; ty++) {
       for (let tx = 0; tx < tilesX; tx++) {
@@ -344,12 +367,14 @@ async function run() {
         }
         tctx.putImageData(img, 0, 0);
 
-        octx.drawImage(tmp, (x - x0) * S, (y - y0) * S, w * S, h * S, x * scale, y * scale, w * scale, h * scale);
+        const dx0 = Math.round(x * ox), dy0 = Math.round(y * oy);
+        const dx1 = Math.round((x + w) * ox), dy1 = Math.round((y + h) * oy);
+        octx.drawImage(tmp, (x - x0) * S, (y - y0) * S, w * S, h * S, dx0, dy0, dx1 - dx0, dy1 - dy0);
 
         done++; bar.value = done / total;
         const elapsed = (performance.now() - t0) / 1000;
         const eta = (elapsed / done) * (total - done);
-        setStatus(done < total ? `Mejorando… quedan aprox. ${fmtTime(eta)}` : "Terminando…");
+        setStatus(done < total ? `Mejorando… quedan aprox. ${fmtTime(eta)}${note}` : "Terminando…");
       }
     }
     break;
@@ -370,7 +395,7 @@ async function run() {
     lastFormat = format;
     $("download").textContent = "Descargar " + format.toUpperCase();
     $("resInfo").textContent = `Tamaño: ${out.width} × ${out.height} px` +
-      (resized ? ` (se ajustó el tamaño de la imagen original para poder procesarla)` : "");
+      (resized ? ` (la imagen original se redujo a ${inCanvas.width} × ${inCanvas.height} px antes de mejorarla${keep ? " y el resultado se ajustó al tamaño pedido" : ""})` : "");
     $("resultCard").classList.remove("hidden");
     setStatus("¡Listo!");
   } catch (e) {
