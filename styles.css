@@ -14,12 +14,14 @@
   --hero-font: "Orbitron", "Arial Black", Impact, system-ui, sans-serif;
 }
 * { box-sizing: border-box; }
+html { font-size: 15px; }
+button, input, select, textarea { font-family: inherit; }
 html, body { min-height: 100%; }
 body {
   margin: 0;
   min-height: 100vh;
   display: flex; flex-direction: column;
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--hero-font);
   color: var(--text);
   background:
     radial-gradient(700px 380px at 8% -6%, rgba(143, 227, 234, .45), transparent 70%),
@@ -47,11 +49,6 @@ body {
   background: var(--grad); -webkit-background-clip: text; background-clip: text;
   -webkit-text-fill-color: transparent; color: var(--blue);
 }
-.badge {
-  margin-left: auto; font-size: .8rem; font-weight: 600; color: var(--accent);
-  background: #eef0ff; border: 1px solid #d6dafc; border-radius: 999px; padding: 6px 12px;
-  white-space: nowrap;
-}
 
 /* ---------- Contenido ---------- */
 main { flex: 1; width: 100%; max-width: 760px; margin: 0 auto; padding: 34px 16px 56px; }
@@ -66,13 +63,7 @@ main { flex: 1; width: 100%; max-width: 760px; margin: 0 auto; padding: 34px 16p
   background: var(--grad); -webkit-background-clip: text; background-clip: text;
   -webkit-text-fill-color: transparent; color: var(--blue);
 }
-p.sub { color: var(--muted); margin: 0 auto 18px; max-width: 560px; line-height: 1.55; }
-.chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-.chip {
-  font-size: .85rem; font-weight: 600; color: var(--text);
-  background: #fff; border: 1px solid var(--border); border-radius: 999px; padding: 6px 13px;
-  box-shadow: 0 2px 8px rgba(91, 95, 192, .08);
-}
+p.sub { color: var(--muted); margin: 0 auto; max-width: 560px; line-height: 1.55; }
 
 /* ---------- Tarjetas ---------- */
 .card {
@@ -96,9 +87,10 @@ p.sub { color: var(--muted); margin: 0 auto 18px; max-width: 560px; line-height:
 .step.ok { background: var(--ok); box-shadow: 0 4px 12px rgba(31, 157, 107, .35); }
 .result-card::before { background: linear-gradient(90deg, #1f9d6b, #8fe3ea); }
 
-/* Al terminar: solo queda el resultado (con Descargar y Cambiar imagen) */
-main:has(#resultCard:not(.hidden)) #stepUpload,
-main:has(#resultCard:not(.hidden)) #stepGo { display: none; }
+/* Al terminar: original arriba, resultado abajo. Se oculta el paso 2 y el
+   botón "Cambiar imagen" de arriba (queda solo el del resultado). */
+main:has(#resultCard:not(.hidden)) #stepGo,
+main:has(#resultCard:not(.hidden)) #change { display: none; }
 
 /* ---------- Zona de carga ---------- */
 .drop {
@@ -134,9 +126,9 @@ button:hover:not(:disabled) { filter: brightness(1.07); }
 button:active:not(:disabled) { transform: translateY(1px); }
 button:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
 button.secondary {
-  background: #fff; border: 1px solid var(--border); color: var(--text); box-shadow: none; font-weight: 500;
+  background: #fff; border: 2px solid #8f98d6; color: var(--accent); box-shadow: none; font-weight: 600;
 }
-button.secondary:hover:not(:disabled) { background: var(--tint); }
+button.secondary:hover:not(:disabled) { background: var(--tint); border-color: var(--accent); }
 #go { padding: 13px 34px; font-size: 1.05rem; }
 #cancel { margin-top: 12px; }
 
@@ -176,7 +168,6 @@ dialog.modal h2 { margin: 0 0 18px; font-size: 1.25rem; }
 @media (max-width: 480px) {
   .logo { height: 38px; }
   .brand-name { font-size: 1.1rem; }
-  .badge { display: none; }
   .topbar-inner { padding: 10px 16px; }
   .drop { min-height: 170px; }
   .card { padding: 18px; }
