@@ -87,7 +87,7 @@ async function buildAttempts(mode) {
 }
 
 function spawn(cfg, mode) {
-  const w = new Worker("worker.js?v=5", { type: "module" });
+  const w = new Worker("worker.js?v=6", { type: "module" });
   return new Promise((resolve, reject) => {
     let settled = false;
     const fail = err => {
@@ -117,7 +117,7 @@ function spawn(cfg, mode) {
         fail(new Error(m.message));
       }
     };
-    w.postMessage({ type: "init", mode, device: cfg.device, dtype: cfg.dtype, model: useHeavy(cfg, mode) ? "plus" : "lite" });
+    w.postMessage({ type: "init", mode, device: cfg.device, dtype: cfg.dtype, model: useHeavy(cfg, mode) ? "plus" : "lite", threads: isMobile ? 2 : Math.min(4, navigator.hardwareConcurrency || 1) });
   });
 }
 
@@ -287,11 +287,25 @@ async function run() {
     setStatus("Preparando…");
     await initWorker();
     stage = "tiles";
+    const budget = (info.gpu && !isMobile) ? Infinity : 240;
+    let tpp = 0;
+    if (Number.isFinite(budget)) {
+      setStatus("Calculando el mejor tamaño para tu equipo…");
+      await runTile(new Uint8ClampedArray(32 * 32 * 3).fill(128), 32, 32);
+      const tc = performance.now();
+      await runTile(new Uint8ClampedArray(64 * 64 * 3).fill(128), 64, 64);
+      tpp = (performance.now() - tc) / 1000 / (64 * 64);
+      verified = false;
+    }
     const heavy = useHeavy(info, mode);
     const PAD = padFor(mode, heavy);
     const { tile: TILE, maxPixels } = limits();
-    const budget = (info.gpu && !isMobile) ? Infinity : 240;
-    let cap = maxPixels, shrunk = false, inCanvas, resized, out, octx, hasAlpha;
+    let cap = maxPixels;
+    if (tpp > 0) {
+      const overhead = ((TILE + 2 * PAD) / TILE) ** 2;
+      cap = Math.max(40000, Math.min(maxPixels, Math.floor(budget / (tpp * overhead))));
+    }
+    let shrunk = false, inCanvas, resized, out, octx, hasAlpha;
     pass: for (;;) {
     ({ canvas: inCanvas, resized } = toCanvas(srcImg, cap));
     const W = inCanvas.width, H = inCanvas.height;
@@ -350,6 +364,7 @@ async function run() {
         const elapsed = (performance.now() - t0) / 1000;
         const eta = (elapsed / done) * (total - done);
         setStatus(done < total ? `Mejorando… quedan aprox. ${fmtTime(eta)}` : "Terminando…");
+        if (isMobile) await new Promise(r => setTimeout(r, 60));
         if (!shrunk && done === 2 && total > 4 && Number.isFinite(budget)) {
           const projected = (elapsed / done) * total;
           if (projected > budget) {
