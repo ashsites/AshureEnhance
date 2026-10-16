@@ -1,5 +1,5 @@
 const S = 4;
-const PHOTO_BLEND = 0.25; // 0 = solo IA (más plástico) · 0.35 = más natural, menos nítido
+const PHOTO_BLEND = 0.25;
 
 const $ = id => document.getElementById(id);
 const drop = $("drop"), fileInput = $("file"), go = $("go"), bar = $("bar"), cancelBtn = $("cancel");
@@ -68,7 +68,6 @@ function load(file) {
 
 go.onclick = () => { if (srcImg && !running) dlg.showModal(); };
 $("optsCancel").onclick = () => dlg.close();
-// El cuadro de opciones solo se cierra con Cancelar o Listo (no al hacer clic fuera ni con Esc).
 dlg.addEventListener("cancel", e => e.preventDefault());
 $("optsDone").onclick = () => { dlg.close(); run(); };
 
@@ -125,7 +124,6 @@ function spawn(cfg, mode) {
       type: "init",
       device: cfg.device,
       dtype: cfg.dtype,
-      // Modelo original especializado en ilustraciones para el modo Arte.
       model: mode === "art" ? "anime" : (useHeavy(cfg, mode) ? "plus" : "lite"),
       threads: Math.min(4, navigator.hardwareConcurrency || 1)
     });
@@ -213,7 +211,6 @@ async function runTile(rgb, width, height) {
   }
 }
 
-// Los límites dependen solo de la memoria disponible, nunca de la velocidad.
 function limits() {
   const gpu = info && info.gpu;
   const heavy = useHeavy(info, getMode());
@@ -313,7 +310,6 @@ async function run() {
     const PAD = padFor(mode, heavy);
     const { tile: TILE, maxPixels } = limits();
 
-    // Solo se limita por memoria, nunca por velocidad del equipo.
     const { canvas: inCanvas, resized } = toCanvas(srcImg, maxPixels);
     const W = inCanvas.width, H = inCanvas.height;
 
@@ -385,8 +381,6 @@ async function run() {
       }
     }
 
-    // Modo Foto: el modelo suaviza la piel y queda "plástico".
-    // Mezclar un poco de la imagen original devuelve textura natural.
     if (mode === "photo" && PHOTO_BLEND > 0) {
       octx.save();
       octx.globalAlpha = PHOTO_BLEND;
