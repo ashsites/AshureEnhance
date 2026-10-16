@@ -87,7 +87,7 @@ async function buildAttempts(mode) {
 }
 
 function spawn(cfg, mode) {
-  const w = new Worker("worker.js?v=8", { type: "module" });
+  const w = new Worker("worker.js?v=9", { type: "module" });
   return new Promise((resolve, reject) => {
     let settled = false;
     const fail = err => {
@@ -271,29 +271,6 @@ function resolveFormat(choice) {
   return "png";
 }
 
-async function fastUpscale(src, scale) {
-  const w = src.width * scale, h = src.height * scale;
-  const c = document.createElement("canvas"); c.width = w; c.height = h;
-  const ctx = c.getContext("2d");
-  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(src, 0, 0, w, h);
-  const img = ctx.getImageData(0, 0, w, h);
-  const s = img.data, o = new Uint8ClampedArray(s), row = w * 4, k = 0.35;
-  for (let y = 1; y < h - 1; y++) {
-    for (let x = 1; x < w - 1; x++) {
-      const i = y * row + x * 4;
-      for (let q = 0; q < 3; q++) {
-        const j = i + q;
-        s[j] = o[j] * (1 + 4 * k) - k * (o[j - 4] + o[j + 4] + o[j - row] + o[j + row]);
-      }
-    }
-    if (y % 64 === 0) await new Promise(r => setTimeout(r));
-    if (cancelled) throw new Error("cancelado");
-  }
-  ctx.putImageData(img, 0, 0);
-  return c;
-}
-
 async function run() {
   if (!srcImg || running) return;
   go.disabled = true; cancelled = false; running = true;
@@ -323,29 +300,26 @@ async function run() {
     const heavy = useHeavy(info, mode);
     const PAD = padFor(mode, heavy);
     const { tile: TILE, maxPixels } = limits();
-    let cap = maxPixels, fast = false;
+    const cap = maxPixels;
     if (tpp > 0) {
       const srcPixels = srcImg.naturalWidth * srcImg.naturalHeight;
       const factor = tpp * ((TILE + 2 * PAD) / TILE) ** 2 * (isMobile ? 1.35 : 1);
       if (srcPixels > maxPixels) {
-        fast = true;
-      } else if (srcPixels * factor > budget) {
-        const mins = Math.max(1, Math.round(srcPixels * factor / 60));
-        const ok = confirm(`Mejorar esta imagen con IA tardará unos ${mins} min en este equipo y puede dejarlo lento.\n\nAceptar: mejorar con IA (lento).\nCancelar: ampliación rápida, sin IA (unos segundos).`);
-        if (ok) cap = srcPixels; else fast = true;
+        const side = Math.floor(Math.sqrt(maxPixels));
+        setStatus(`Esta imagen es demasiado grande para mejorarla en este equipo. Prueba con una de hasta ${side} × ${side} px aproximadamente.`);
+        return;
       }
-      if (fast) cap = Math.min(srcPixels, Math.floor(12000000 / (scale * scale)));
+      if (srcPixels * factor > budget) {
+        const mins = Math.max(1, Math.round(srcPixels * factor / 60));
+        if (!confirm(`Mejorar esta imagen tardará unos ${mins} min en este equipo y puede dejarlo lento. ¿Continuar?`)) {
+          setStatus("Cancelado.");
+          return;
+        }
+      }
     }
     let inCanvas, resized, out, octx, hasAlpha;
     pass: for (;;) {
     ({ canvas: inCanvas, resized } = toCanvas(srcImg, cap));
-    if (fast) {
-      setStatus("Ampliando…");
-      out = await fastUpscale(inCanvas, scale);
-      octx = out.getContext("2d");
-      hasAlpha = false;
-      break;
-    }
     const W = inCanvas.width, H = inCanvas.height;
 
     const flat = document.createElement("canvas"); flat.width = W; flat.height = H;
@@ -425,7 +399,7 @@ async function run() {
     lastFormat = format;
     $("download").textContent = "Descargar " + format.toUpperCase();
     $("resInfo").textContent = `Tamaño: ${out.width} × ${out.height} px` +
-      (fast ? ` (ampliación rápida sin IA, para que no se trabe tu equipo)` : resized ? ` (se ajustó el tamaño de la imagen original para poder procesarla)` : "");
+      (resized ? ` (se ajustó el tamaño de la imagen original para poder procesarla)` : "");
     $("resultCard").classList.remove("hidden");
     setStatus("¡Listo!");
   } catch (e) {
