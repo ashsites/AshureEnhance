@@ -4,346 +4,374 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#ffffff">
+  <meta name="description" content="Mejora y amplía tus imágenes con Ashure Enhance.">
 
   <title>Ashure Enhance</title>
-
   <link rel="icon" type="image/png" href="logo.png">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@400;500;600;700;900&display=swap"
-        rel="stylesheet">
-
-  <link rel="stylesheet" href="styles.css?v=4">
+  <link rel="stylesheet" href="styles.css?v=5">
 </head>
 
 <body>
+  <!-- Barra de navegación -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="#" aria-label="Ashure Enhance, inicio">
+        <img class="logo" src="logo.png" alt="Logo de Ashure Enhance">
+        <span class="brand-name">Ashure Enhance</span>
+      </a>
 
-<header class="topbar">
-  <div class="topbar-inner">
-    <img class="logo" src="logo.png" alt="Logo de Ashure Enhance">
-    <span class="brand-name">Ashure Enhance</span>
-  </div>
-</header>
-
-<main>
-
-  <section class="hero">
-    <h1>Mejora tus <span class="grad-text">imágenes</span></h1>
-
-    <p class="sub">
-      Aumenta la resolución y la nitidez de tus ilustraciones y fotografías.
-      Todo el procesamiento se realiza en tu navegador, sin subir tus
-      imágenes a un servidor.
-    </p>
-
-    <button id="howWorksBtn" class="secondary how-works-btn" type="button">
-      ¿Cómo funciona?
-    </button>
-  </section>
-
-  <div class="card" id="stepUpload">
-    <div class="card-head">
-      <span class="step">1</span>
-      <div>
-        <h2>Sube tu imagen</h2>
-        <p class="hint">PNG, JPG o WebP</p>
-      </div>
-    </div>
-
-    <div id="drop" class="drop">
-      <svg class="drop-icon" viewBox="0 0 24 24"
-           width="44" height="44" fill="none"
-           stroke="currentColor" stroke-width="1.6"
-           stroke-linecap="round" stroke-linejoin="round"
-           aria-hidden="true">
-        <path d="M12 16V4m0 0l-4 4m4-4l4 4"/>
-        <path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>
-      </svg>
-
-      <strong>Arrastra una imagen aquí</strong>
-      <span>o haz clic para elegirla</span>
-    </div>
-
-    <input id="file" type="file" accept="image/*" class="hidden">
-
-    <div id="previewWrap" class="hidden">
-      <img id="preview" class="preview" alt="Vista previa de la imagen">
-
-      <p class="status" id="info"></p>
-
-      <button id="change" class="secondary" type="button">
-        Cambiar imagen
+      <button id="howWorksBtn" class="how-works-btn" type="button">
+        <span class="help-icon" aria-hidden="true">?</span>
+        ¿Cómo funciona?
       </button>
     </div>
-  </div>
+  </header>
 
-  <div class="card" id="stepGo">
-    <div class="card-head">
-      <span class="step">2</span>
-      <div>
-        <h2>Mejora</h2>
-        <p class="hint">Configura las opciones y mejora tu imagen</p>
+  <main class="page">
+    <!-- Presentación -->
+    <section class="hero">
+      <div class="eyebrow">
+        <span class="eyebrow-dot"></span>
+        MEJORA DE IMÁGENES
+      </div>
+
+      <h1>Mejora tus <span>imágenes</span></h1>
+
+      <p class="hero-copy">
+        Aumenta la resolución y mejora los detalles de tus imágenes
+        de forma sencilla, directamente desde tu navegador.
+      </p>
+    </section>
+
+    <!-- Área principal -->
+    <section class="workspace">
+
+      <!-- Paso 1: subir imagen -->
+      <article class="panel" id="stepUpload">
+        <div class="panel-heading">
+          <span class="step-number">1</span>
+          <div>
+            <h2>Sube tu imagen</h2>
+            <p>Selecciona un archivo para comenzar.</p>
+          </div>
+        </div>
+
+        <label class="drop-area" id="drop" for="file">
+          <input id="file" type="file" accept="image/*">
+
+          <span class="upload-symbol" aria-hidden="true">
+            <svg viewBox="0 0 48 48">
+              <path d="M24 31V8M15 17l9-9 9 9"></path>
+              <path d="M9 29v9a2 2 0 0 0 2 2h26a2 2 0 0 0 2-2v-9"></path>
+            </svg>
+          </span>
+
+          <strong>Arrastra tu imagen aquí</strong>
+          <span class="drop-or">o haz clic para buscar un archivo</span>
+          <span class="file-types">Admite imágenes PNG, JPG y WebP</span>
+        </label>
+
+        <div id="previewWrap" class="preview-wrap" hidden>
+          <div class="preview-topline">
+            <span class="mini-label">VISTA PREVIA</span>
+            <button id="change" class="text-button" type="button">
+              Cambiar imagen
+            </button>
+          </div>
+
+          <div class="preview-image-frame">
+            <img id="preview" alt="Vista previa de la imagen seleccionada">
+          </div>
+
+          <p id="info" class="file-info"></p>
+        </div>
+      </article>
+
+      <!-- Paso 2: mejorar imagen -->
+      <article class="panel" id="stepGo">
+        <div class="panel-heading">
+          <span class="step-number">2</span>
+          <div>
+            <h2>Configura la mejora</h2>
+            <p>Personaliza el resultado según tus necesidades.</p>
+          </div>
+        </div>
+
+        <div class="option-summary">
+          <div class="option-icon" aria-hidden="true">
+            <svg viewBox="0 0 32 32">
+              <path d="M6 8h20M6 16h20M6 24h20"></path>
+              <circle cx="12" cy="8" r="3"></circle>
+              <circle cx="21" cy="16" r="3"></circle>
+              <circle cx="15" cy="24" r="3"></circle>
+            </svg>
+          </div>
+
+          <div>
+            <strong>Opciones personalizables</strong>
+            <p>
+              Tipo de imagen, escala de ampliación, reducción de ruido
+              y formato de salida.
+            </p>
+          </div>
+        </div>
+
+        <button id="go" class="primary-button full-button" type="button" disabled>
+          Mejorar imagen <span aria-hidden="true">→</span>
+        </button>
+
+        <div class="progress-area" aria-live="polite">
+          <div class="progress-copy">
+            <span id="status">Preparado para comenzar</span>
+          </div>
+
+          <div class="progress-track">
+            <div id="bar" class="progress-bar"></div>
+          </div>
+        </div>
+
+        <button id="cancel" class="secondary-button full-button cancel-button"
+                type="button" hidden>
+          Cancelar proceso
+        </button>
+
+        <p class="privacy-note">
+          <span aria-hidden="true">●</span>
+          El procesamiento se realiza en tu navegador cuando el dispositivo lo permite.
+        </p>
+      </article>
+    </section>
+
+    <!-- Resultado -->
+    <article id="resultCard" class="panel result-panel" hidden>
+      <div class="panel-heading">
+        <span class="step-number result-step">✓</span>
+        <div>
+          <h2>Tu imagen mejorada</h2>
+          <p>Revisa el resultado y guárdalo en tu dispositivo.</p>
+        </div>
+      </div>
+
+      <div class="result-image-frame">
+        <img id="result" alt="Resultado de la imagen mejorada">
+      </div>
+
+      <p id="resInfo" class="file-info"></p>
+
+      <div class="result-actions">
+        <a id="download" class="primary-button download-button" href="#" download>
+          Descargar imagen <span aria-hidden="true">↓</span>
+        </a>
+
+        <button id="again" class="secondary-button" type="button">
+          Mejorar otra imagen
+        </button>
+      </div>
+    </article>
+
+    <footer class="footer">
+      <span class="footer-mark">A</span>
+      <span>Ashure Enhance</span>
+      <span class="footer-separator">·</span>
+      <span>Mejora tus imágenes a tu manera</span>
+    </footer>
+  </main>
+
+  <!-- Ventana de opciones: conserva los nombres de los campos -->
+  <dialog id="opts" class="dialog options-dialog">
+    <div class="dialog-inner">
+      <div class="dialog-header">
+        <div>
+          <span class="dialog-kicker">AJUSTES</span>
+          <h2>Opciones de mejora</h2>
+          <p>Personaliza el resultado antes de comenzar.</p>
+        </div>
+
+        <button id="optsCancelX" class="icon-close" type="button"
+                aria-label="Cerrar opciones">×</button>
+      </div>
+
+      <fieldset class="setting-group">
+        <legend>Tipo de imagen</legend>
+
+        <div class="choice-grid">
+          <label class="choice-card">
+            <input type="radio" name="mode" value="art" checked>
+            <span class="choice-content">
+              <strong>Ilustración</strong>
+              <small>Dibujos, anime y gráficos</small>
+            </span>
+          </label>
+
+          <label class="choice-card">
+            <input type="radio" name="mode" value="photo">
+            <span class="choice-content">
+              <strong>Fotografía</strong>
+              <small>Personas, paisajes y fotos</small>
+            </span>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset class="setting-group">
+        <legend>Escala de ampliación</legend>
+
+        <div class="choice-grid">
+          <label class="choice-card">
+            <input type="radio" name="scale" value="2" checked>
+            <span class="choice-content">
+              <strong>2×</strong>
+              <small>Equilibrio entre calidad y tiempo</small>
+            </span>
+          </label>
+
+          <label class="choice-card">
+            <input type="radio" name="scale" value="4">
+            <span class="choice-content">
+              <strong>4×</strong>
+              <small>Mayor tamaño de salida</small>
+            </span>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset class="setting-group">
+        <legend>Reducción de ruido</legend>
+        <div class="select-wrap">
+          <select name="noise" aria-label="Reducción de ruido">
+            <option value="none" selected>Sin reducción</option>
+            <option value="low">Baja</option>
+            <option value="medium">Media</option>
+            <option value="high">Alta</option>
+            <option value="max">Máxima</option>
+          </select>
+        </div>
+        <p class="setting-hint">
+          Una reducción más alta puede suavizar algunos detalles.
+        </p>
+      </fieldset>
+
+      <fieldset class="setting-group">
+        <legend>Formato de salida</legend>
+        <div class="select-wrap">
+          <select name="format" aria-label="Formato de salida">
+            <option value="default" selected>Conservar formato original cuando sea posible</option>
+            <option value="png">PNG</option>
+            <option value="jpg">JPG</option>
+            <option value="webp">WebP</option>
+          </select>
+        </div>
+      </fieldset>
+
+      <div class="dialog-actions">
+        <button id="optsCancel" class="secondary-button" type="button">
+          Volver
+        </button>
+        <button id="optsDone" class="primary-button" type="button">
+          Continuar <span aria-hidden="true">→</span>
+        </button>
       </div>
     </div>
+  </dialog>
 
-    <div class="row">
-      <button id="go" type="button" disabled>Mejorar</button>
-    </div>
+  <!-- Ventana informativa -->
+  <dialog id="howWorksDialog" class="dialog how-dialog">
+    <div class="dialog-inner">
+      <div class="dialog-header">
+        <div>
+          <span class="dialog-kicker">GUÍA RÁPIDA</span>
+          <h2>¿Cómo funciona?</h2>
+          <p>Sigue estos pasos para mejorar tu imagen.</p>
+        </div>
 
-    <progress id="bar" value="0" max="1" class="hidden"></progress>
+        <button id="howWorksCloseX" class="icon-close" type="button"
+                aria-label="Cerrar explicación">×</button>
+      </div>
 
-    <p class="status" id="status" aria-live="polite"></p>
+      <ol class="how-steps">
+        <li>
+          <span class="how-step-icon">1</span>
+          <div>
+            <strong>Sube una imagen</strong>
+            <p>Selecciona un archivo desde tu dispositivo o arrástralo al área de carga.</p>
+          </div>
+        </li>
 
-    <button id="cancel" class="secondary hidden" type="button">
-      Cancelar
-    </button>
-  </div>
+        <li>
+          <span class="how-step-icon">2</span>
+          <div>
+            <strong>Elige los ajustes</strong>
+            <p>Selecciona el tipo de imagen, la escala, la reducción de ruido y el formato de salida.</p>
+          </div>
+        </li>
 
-  <div id="resultCard" class="card result-card hidden">
-    <div class="card-head">
-      <span class="step ok">
-        <svg viewBox="0 0 24 24" width="20" height="20"
-             fill="none" stroke="currentColor" stroke-width="3"
-             stroke-linecap="round" stroke-linejoin="round"
-             aria-hidden="true">
-          <path d="M5 12.5l4.5 4.5L19 7.5"/>
-        </svg>
-      </span>
+        <li>
+          <span class="how-step-icon">3</span>
+          <div>
+            <strong>Espera el procesamiento</strong>
+            <p>El tiempo depende del tamaño de la imagen, los ajustes y la capacidad de tu dispositivo.</p>
+          </div>
+        </li>
 
-      <div>
-        <h2>¡Tu imagen está lista!</h2>
-        <p class="hint" id="resInfo"></p>
+        <li>
+          <span class="how-step-icon">4</span>
+          <div>
+            <strong>Descarga el resultado</strong>
+            <p>Cuando termine el proceso, revisa la imagen y guárdala en tu dispositivo.</p>
+          </div>
+        </li>
+      </ol>
+
+      <div class="tip-box">
+        <strong>Consejo</strong>
+        <p>
+          Si tarda demasiado, prueba con una imagen más pequeña, selecciona 2×
+          o cierra programas y pestañas que consuman muchos recursos.
+        </p>
+      </div>
+
+      <div class="dialog-actions">
+        <button id="howWorksClose" class="primary-button" type="button">
+          Entendido
+        </button>
       </div>
     </div>
+  </dialog>
 
-    <canvas id="result" class="result"></canvas>
+  <script src="coi-serviceworker.js"></script>
+  <script type="module" src="app.js?v=27"></script>
 
-    <div class="row actions-row">
-      <button id="download" type="button">Descargar</button>
-      <button id="again" class="secondary" type="button">
-        Cambiar imagen
-      </button>
-    </div>
-  </div>
+  <script>
+    (() => {
+      const helpDialog = document.getElementById("howWorksDialog");
+      const helpButton = document.getElementById("howWorksBtn");
 
-</main>
+      function closeHelp() {
+        if (helpDialog && helpDialog.open) helpDialog.close();
+      }
 
-<footer class="footer">
-  <p>
-    © 2026 <span class="footer-brand">Ashure Enhance</span>.
-    Todos los derechos reservados.
-  </p>
-</footer>
+      helpButton?.addEventListener("click", () => {
+        if (helpDialog && !helpDialog.open) helpDialog.showModal();
+      });
 
-<dialog id="howWorksDialog" class="modal how-modal"
-        aria-labelledby="howWorksTitle">
+      document.getElementById("howWorksClose")?.addEventListener("click", closeHelp);
+      document.getElementById("howWorksCloseX")?.addEventListener("click", closeHelp);
 
-  <div class="modal-header">
-    <div>
-      <h2 id="howWorksTitle">¿Cómo funciona Ashure Enhance?</h2>
-      <p class="modal-intro">
-        Información sobre el procesamiento de tus imágenes
-        y cómo obtener un mejor rendimiento.
-      </p>
-    </div>
+      helpDialog?.addEventListener("click", event => {
+        if (event.target === helpDialog) closeHelp();
+      });
 
-    <button id="howWorksCloseX" class="modal-close"
-            type="button" aria-label="Cerrar ventana">
-      &times;
-    </button>
-  </div>
+      const optionsDialog = document.getElementById("opts");
 
-  <div class="how-content">
-
-    <section class="how-section">
-      <h3>Procesamiento en tu dispositivo</h3>
-      <p>
-        Ashure Enhance trabaja directamente en tu navegador.
-        Tus imágenes no se envían a un servidor para realizar
-        la mejora. El tiempo de procesamiento depende de las
-        características de tu equipo y de los recursos que
-        tenga disponibles.
-      </p>
-    </section>
-
-    <section class="how-section">
-      <h3>La potencia del equipo influye en la velocidad</h3>
-      <p>
-        Un procesador más potente y una tarjeta gráfica
-        compatible pueden ayudar a completar el proceso en
-        menos tiempo. La aplicación utiliza la aceleración
-        gráfica cuando está disponible en los equipos
-        compatibles; en caso contrario, puede recurrir al
-        procesador mediante una alternativa de software.
-      </p>
-    </section>
-
-    <section class="how-section">
-      <h3>Cierra los programas que no estés utilizando</h3>
-      <p>
-        Otras aplicaciones y pestañas del navegador pueden
-        consumir memoria y capacidad de procesamiento.
-        Cerrarlas antes de empezar puede ayudar a liberar
-        recursos, especialmente en equipos con memoria
-        limitada, y favorecer un procesamiento más fluido.
-      </p>
-    </section>
-
-    <section class="how-section">
-      <h3>El tamaño y la escala de la imagen importan</h3>
-      <p>
-        Las imágenes de gran tamaño requieren más memoria y
-        operaciones. La opción 4x genera una imagen de mayor
-        resolución que la opción 2x y, por lo general,
-        necesita más tiempo de procesamiento.
-      </p>
-    </section>
-
-    <section class="how-section">
-      <h3>Selecciona las opciones según el resultado que buscas</h3>
-      <p>
-        Puedes elegir entre el modo Arte y el modo Foto,
-        ajustar la reducción de ruido y seleccionar el formato
-        de salida. Los niveles más altos de reducción de ruido
-        realizan más operaciones y pueden prolongar el proceso.
-      </p>
-    </section>
-
-    <div class="how-tip">
-      <strong>Recomendación</strong>
-      <p>
-        Para reducir el tiempo de espera, cierra los programas
-        que consumen muchos recursos, prueba con una imagen
-        más pequeña y selecciona 2x si no necesitas la máxima
-        ampliación. El tiempo final también depende de las
-        características de tu dispositivo.
-      </p>
-    </div>
-
-  </div>
-
-  <div class="actions modal-actions">
-    <button id="howWorksClose" type="button">Entendido</button>
-  </div>
-</dialog>
-
-<dialog id="opts" class="modal options-modal">
-  <h2>Opciones</h2>
-
-  <div class="group">
-    <p class="lbl">Tipo de imagen</p>
-    <div class="row">
-      <label class="opt">
-        <input type="radio" name="mode" value="art" checked>
-        Arte <small>(dibujos, ilustraciones, etc.)</small>
-      </label>
-
-      <label class="opt">
-        <input type="radio" name="mode" value="photo">
-        Foto <small>(personas, animales, etc.)</small>
-      </label>
-    </div>
-  </div>
-
-  <div class="group">
-    <p class="lbl">Aumento de la escala</p>
-    <div class="row">
-      <label class="opt">
-        <input type="radio" name="scale" value="2" checked> 2x
-      </label>
-
-      <label class="opt">
-        <input type="radio" name="scale" value="4"> 4x
-      </label>
-    </div>
-  </div>
-
-  <div class="group">
-    <p class="lbl">Reducción del ruido</p>
-    <div class="row">
-      <label class="opt">
-        <input type="radio" name="noise" value="none" checked> Ninguno
-      </label>
-
-      <label class="opt">
-        <input type="radio" name="noise" value="low"> Bajo
-      </label>
-
-      <label class="opt">
-        <input type="radio" name="noise" value="medium"> Medio
-      </label>
-
-      <label class="opt">
-        <input type="radio" name="noise" value="high"> Alto
-      </label>
-
-      <label class="opt">
-        <input type="radio" name="noise" value="max"> El más alto
-      </label>
-    </div>
-  </div>
-
-  <div class="group">
-    <p class="lbl">Formato de salida</p>
-    <div class="row">
-      <label class="opt">
-        <input type="radio" name="format" value="default" checked>
-        Predeterminado
-      </label>
-
-      <label class="opt">
-        <input type="radio" name="format" value="webp"> WebP
-      </label>
-
-      <label class="opt">
-        <input type="radio" name="format" value="jpg"> JPG
-      </label>
-
-      <label class="opt">
-        <input type="radio" name="format" value="png"> PNG
-      </label>
-    </div>
-  </div>
-
-  <div class="actions">
-    <button id="optsCancel" class="secondary" type="button">
-      Cancelar
-    </button>
-
-    <button id="optsDone" type="button">Listo</button>
-  </div>
-</dialog>
-
-<script src="coi-serviceworker.js"></script>
-<script type="module" src="app.js?v=27"></script>
-
-<script>
-  (() => {
-    const dialog = document.getElementById("howWorksDialog");
-
-    document.getElementById("howWorksBtn").addEventListener("click", () => {
-      if (!dialog.open) dialog.showModal();
-    });
-
-    function closeHowWorks() {
-      if (dialog.open) dialog.close();
-    }
-
-    document.getElementById("howWorksClose").addEventListener(
-      "click", closeHowWorks
-    );
-
-    document.getElementById("howWorksCloseX").addEventListener(
-      "click", closeHowWorks
-    );
-
-    dialog.addEventListener("click", event => {
-      if (event.target === dialog) closeHowWorks();
-    });
-  })();
-</script>
-
+      document.getElementById("optsCancelX")?.addEventListener("click", () => {
+        if (optionsDialog?.open) optionsDialog.close();
+      });
+    })();
+  </script>
 </body>
 </html>
