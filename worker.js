@@ -4,6 +4,7 @@ const ORT_URL = ORT_BASE + "ort.webgpu.min.mjs";
 const MODELS = {
   plus: "https://huggingface.co/jonathanst29/tinier-upscale-models/resolve/main/realesrgan-x4plus.onnx",
   lite: "https://huggingface.co/jonathanst29/tinier-upscale-models/resolve/main/realesr-general-x4v3.onnx",
+  anime: "https://huggingface.co/xiongjie/lightweight-real-ESRGAN-anime/resolve/main/RealESRGAN_x4plus_anime_4B32F.onnx",
 };
 
 let ort = null, session = null, inName = "", outName = "";
