@@ -87,7 +87,7 @@ async function buildAttempts(mode) {
 }
 
 function spawn(cfg, mode) {
-  const w = new Worker("worker.js?v=9", { type: "module" });
+  const w = new Worker("worker.js?v=10", { type: "module" });
   return new Promise((resolve, reject) => {
     let settled = false;
     const fail = err => {
@@ -194,10 +194,10 @@ async function runTile(rgb, width, height) {
 function limits() {
   const gpu = info && info.gpu;
   const heavy = useHeavy(info, getMode());
-  const weak = isMobile && ((navigator.deviceMemory || 4) <= 4 || (navigator.hardwareConcurrency || 4) <= 4);
+  const weak = isMobile && ((navigator.deviceMemory || 4) <= 2 || (navigator.hardwareConcurrency || 4) <= 4);
   return {
     tile: heavy ? 96 : ((!gpu || isMobile) ? 96 : 128),
-    maxPixels: isMobile ? (weak ? 400000 : 700000) : (gpu ? 1600000 : 1000000),
+    maxPixels: isMobile ? (weak ? 400000 : 1100000) : (gpu ? 1600000 : 1000000),
   };
 }
 
