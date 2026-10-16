@@ -1,15 +1,16 @@
 :root {
-  --bg: #ffffff;
+  --bg: #f1f3fb;
   --card: #ffffff;
   --text: #1f1b3a;
   --muted: #6b6a85;
-  --border: #e3e6f3;
+  --border: #d9def2;
   --blue: #2563b8;
   --cyan: #8fe3ea;
   --purple: #7b5ea7;
   --accent: #5b5fc0;
   --grad: linear-gradient(135deg, #2563b8 0%, #5b5fc0 55%, #7b5ea7 100%);
   --tint: #f6f8fe;
+  --ok: #1f9d6b;
   --hero-font: "Orbitron", "Arial Black", Impact, system-ui, sans-serif;
 }
 * { box-sizing: border-box; }
@@ -19,13 +20,21 @@ body {
   min-height: 100vh;
   display: flex; flex-direction: column;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  background: #ffffff;
   color: var(--text);
+  background:
+    radial-gradient(700px 380px at 8% -6%, rgba(143, 227, 234, .45), transparent 70%),
+    radial-gradient(640px 360px at 96% 2%, rgba(123, 94, 167, .22), transparent 70%),
+    var(--bg);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
 }
 
+/* ---------- Barra superior ---------- */
 .topbar {
-  background: #ffffff;
+  background: rgba(255, 255, 255, .85);
+  backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 5;
 }
 .topbar-inner {
   max-width: 960px; margin: 0 auto; padding: 12px 20px;
@@ -38,25 +47,74 @@ body {
   background: var(--grad); -webkit-background-clip: text; background-clip: text;
   -webkit-text-fill-color: transparent; color: var(--blue);
 }
+.badge {
+  margin-left: auto; font-size: .8rem; font-weight: 600; color: var(--accent);
+  background: #eef0ff; border: 1px solid #d6dafc; border-radius: 999px; padding: 6px 12px;
+  white-space: nowrap;
+}
 
-main { flex: 1; width: 100%; max-width: 760px; margin: 0 auto; padding: 28px 16px 48px; }
-p.sub { color: var(--muted); margin: 0 0 22px; }
+/* ---------- Contenido ---------- */
+main { flex: 1; width: 100%; max-width: 760px; margin: 0 auto; padding: 34px 16px 56px; }
 
+.hero { text-align: center; margin-bottom: 30px; }
+.hero h1 {
+  font-family: var(--hero-font);
+  font-size: clamp(1.7rem, 5.2vw, 2.6rem); line-height: 1.15; font-weight: 900;
+  margin: 0 0 14px; letter-spacing: .01em;
+}
+.grad-text {
+  background: var(--grad); -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: var(--blue);
+}
+p.sub { color: var(--muted); margin: 0 auto 18px; max-width: 560px; line-height: 1.55; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.chip {
+  font-size: .85rem; font-weight: 600; color: var(--text);
+  background: #fff; border: 1px solid var(--border); border-radius: 999px; padding: 6px 13px;
+  box-shadow: 0 2px 8px rgba(91, 95, 192, .08);
+}
+
+/* ---------- Tarjetas ---------- */
 .card {
-  background: var(--card); border: 1px solid var(--border); border-radius: 16px;
-  padding: 20px; margin-bottom: 16px;
-  box-shadow: 0 6px 24px rgba(91, 95, 192, .07);
+  position: relative; overflow: hidden;
+  background: var(--card); border: 1px solid var(--border); border-radius: 18px;
+  padding: 22px; margin-bottom: 22px;
+  box-shadow: 0 10px 30px rgba(91, 95, 192, .13), 0 2px 6px rgba(31, 27, 58, .05);
 }
-.drop {
-  border: 2px dashed #c6cdea; border-radius: 12px; padding: 36px 16px; text-align: center;
-  min-height: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  cursor: pointer; color: var(--muted); background: var(--tint);
-  transition: border-color .15s, background .15s, color .15s;
+.card::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 4px; background: var(--grad);
 }
-.drop:hover { border-color: var(--accent); }
-.drop.over { border-color: var(--blue); background: #eef9fb; color: var(--text); }
-.drop.hidden { display: none; }
+.card-head { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+.card-head h2 { margin: 0; font-size: 1.15rem; }
+.hint { margin: 2px 0 0; color: var(--muted); font-size: .88rem; }
+.step {
+  flex: none; width: 36px; height: 36px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--grad); color: #fff; font-weight: 700;
+  box-shadow: 0 4px 12px rgba(91, 95, 192, .35);
+}
+.step.ok { background: var(--ok); box-shadow: 0 4px 12px rgba(31, 157, 107, .35); }
+.result-card::before { background: linear-gradient(90deg, #1f9d6b, #8fe3ea); }
 
+/* Al terminar: solo queda el resultado (con Descargar y Cambiar imagen) */
+main:has(#resultCard:not(.hidden)) #stepUpload,
+main:has(#resultCard:not(.hidden)) #stepGo { display: none; }
+
+/* ---------- Zona de carga ---------- */
+.drop {
+  border: 2px dashed #b9c1ea; border-radius: 14px; padding: 36px 16px; text-align: center;
+  min-height: 210px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  cursor: pointer; color: var(--muted); background: var(--tint);
+  transition: border-color .15s, background .15s, color .15s, transform .15s;
+}
+.drop strong { color: var(--text); font-size: 1.05rem; }
+.drop-icon { color: var(--accent); margin-bottom: 6px; }
+.drop:hover { border-color: var(--accent); background: #f0f2ff; }
+.drop.over { border-color: var(--blue); background: #eef9fb; color: var(--text); transform: scale(1.01); }
+
+#previewWrap button { margin-top: 14px; }
+
+/* ---------- Controles ---------- */
 .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .lbl { margin: 0 0 8px; font-size: .88rem; font-weight: 600; color: var(--muted); }
 label.opt {
@@ -67,9 +125,9 @@ label.opt:has(input:checked) { border-color: var(--accent); background: #f1f2fc;
 input[type=radio] { accent-color: var(--accent); }
 
 button {
-  background: var(--grad); color: #fff; border: 0; border-radius: 10px;
-  padding: 11px 22px; font-size: 1rem; font-weight: 600; cursor: pointer;
-  box-shadow: 0 4px 14px rgba(91, 95, 192, .28);
+  background: var(--grad); color: #fff; border: 0; border-radius: 12px;
+  padding: 12px 24px; font-size: 1rem; font-weight: 600; cursor: pointer;
+  box-shadow: 0 6px 18px rgba(91, 95, 192, .32);
   transition: filter .15s, transform .05s;
 }
 button:hover:not(:disabled) { filter: brightness(1.07); }
@@ -78,18 +136,24 @@ button:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
 button.secondary {
   background: #fff; border: 1px solid var(--border); color: var(--text); box-shadow: none; font-weight: 500;
 }
+button.secondary:hover:not(:disabled) { background: var(--tint); }
+#go { padding: 13px 34px; font-size: 1.05rem; }
+#cancel { margin-top: 12px; }
 
 img.preview, canvas.result {
-  max-width: 100%; border-radius: 10px; display: block; border: 1px solid var(--border);
+  max-width: 100%; border-radius: 12px; display: block; border: 1px solid var(--border);
   background: repeating-conic-gradient(#f1f2f8 0% 25%, #ffffff 0% 50%) 50% / 16px 16px;
 }
-progress { width: 100%; height: 10px; accent-color: var(--accent); }
+canvas.result { margin: 0 auto; }
+.actions-row { margin-top: 18px; }
+progress { width: 100%; height: 10px; accent-color: var(--accent); margin-top: 14px; }
 .status { color: var(--muted); font-size: .92rem; margin: 10px 0 0; }
-.hidden { display: none; }
+.hidden { display: none !important; }
 small { color: var(--muted); }
 
+/* ---------- Pie ---------- */
 .footer {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border); background: rgba(255, 255, 255, .7);
   padding: 20px 16px; text-align: center;
   color: var(--muted); font-size: .85rem;
 }
@@ -99,11 +163,12 @@ small { color: var(--muted); }
   color: var(--accent);
 }
 
+/* ---------- Ventana de opciones ---------- */
 dialog.modal {
   border: 1px solid var(--border); border-radius: 18px; padding: 24px; background: #fff; color: var(--text);
   width: min(560px, calc(100% - 32px)); box-shadow: 0 20px 60px rgba(31, 27, 58, .25);
 }
-dialog.modal::backdrop { background: rgba(31, 27, 58, .38); }
+dialog.modal::backdrop { background: rgba(31, 27, 58, .38); backdrop-filter: blur(2px); }
 dialog.modal h2 { margin: 0 0 18px; font-size: 1.25rem; }
 .group { margin-bottom: 18px; }
 .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
@@ -111,6 +176,9 @@ dialog.modal h2 { margin: 0 0 18px; font-size: 1.25rem; }
 @media (max-width: 480px) {
   .logo { height: 38px; }
   .brand-name { font-size: 1.1rem; }
+  .badge { display: none; }
   .topbar-inner { padding: 10px 16px; }
   .drop { min-height: 170px; }
+  .card { padding: 18px; }
+  main { padding-top: 24px; }
 }
